@@ -92,10 +92,17 @@ uemcli -d 10.2.166.184 -u admin -p Password123 -saveUser
   ```
 
 
-* Toggle on “Skip Mount Point validation during registration.”
+  * Toggle on “Skip Mount Point validation during registration.”
 
-  ![skip-mount-point.png](./images/skip-mount-point.png)
+    ![skip-mount-point.png](./images/skip-mount-point.png)
 
+5. Configuring Protection Group
+
+  * Enter the mandatory values to configure a Protection Group ( Protection Group name, Source, Storage Domain, Policy, etc.).
+
+  * Under the Advanced Section Toggle on to **Enable Pre & Post Script**. Below, Screenshot captures the necessary details to configure Pre & Post Script.
+
+  ![enable-pre-post](./images/enable-pre-post.png)
 
 ### Run script
 
