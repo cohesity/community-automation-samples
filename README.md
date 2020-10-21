@@ -24,7 +24,7 @@ In order to contribute to this github repo, make sure you the following contents
 
 1. Automation script that you want to upload in the following format `workflow-scriptingLanguage.extension`. For example, `vmware-createVM-powerShell.ps1`.
 
-2. A README with a small write up on what your script does and how to use it and sample output(if applicable). You can refer this (sample README) [./SampleREADME.md].md to get started
+2. A README with a small write up on what your script does and how to use it and sample output(if applicable). You can refer this [sample README](./SampleREADME.md).md to get started
 
 
 ## <a name="contribute"></a> Contribute :handshake:
