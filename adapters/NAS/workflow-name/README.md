@@ -104,22 +104,20 @@ uemcli -d 10.2.166.184 -u admin -p Password123 -saveUser
 
   ![enable-pre-post](./images/enable-pre-post.png)
 
+
+  | Field Name               | Value                                              | Notes                                                                                                                      |
+|--------------------------|----------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| Hostname or IP Address   | Linux/UNIX Hostname or IP Address                  | Linux/Unix Hostname where Pre & Post Script is hosted                                                                      |
+| Username                 | Linux/UNIX username                                | Linux/Unix username which would run the script on the UNIX host                                                            |
+| Pre Script > Script Name | The absolute path of the Pre Script                | The absolute path of the Pre Script hosted on Linux/Unix server                                                            |
+| Script Params            | pre <Unity_Filesystem_CLI_ID> Cohesity_Unity_Snap  | 1. Take Filesystem CLI ID from Unisphere <br> 2. Cohesity_Unity_Snap is the snapshot name that will be created by the prescript   |
+| Post Script> Script Name | The absolute path of the Post Script               | The absolute path of the Post Script hosted on Linux/Unix server                                                           |
+| Script Params            | post <Unity_Filesystem_CLI_ID> Cohesity_Unity_Snap | 1. Take Filesystem CLI ID from Unisphere <br> 2. Cohesity_Unity_Snap is the snapshot name that will be deleted by the Post Script |
+
 ### Run script
 
-SAMPLE STEPS TO RUN THE SCRIPT. MODIFY IT ACCORDINGLY
-
-> Note: In order to run this script, you need to have the privilege.json file in the same folder as the script. 
-
-* Run the script using
-
-  ```
-  ./CustomPriv.ps1
-  ```
-
-* The script will prompt you some questions regarding vCenter and other information. 
-
-* Enter the correct values and the script will add the required permission on vCenter for Cohesity to be able to perform Backup and Recovery
+* The script will now run whenever the protection group is run
 
 ### Have any question
 
-Send me an email at <YOUR_EMAIL_ADDRESS>
+Send me an email at ruby.garg@cohesity.com
