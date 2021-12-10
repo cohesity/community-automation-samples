@@ -34,7 +34,7 @@ In order to contribute to this github repo, make sure you the following contents
 2. Make your changes in a new git branch:
 
      ```shell
-     git checkout -b my-fix-branch master
+     git checkout -b my-fix-branch main
      ```
 3. Add your script along with your README.md file in the correct folder. If there is no appropriate folder present, create one for your workflow, for example, NAS-Workflows.
 
@@ -46,7 +46,7 @@ In order to contribute to this github repo, make sure you the following contents
     git push origin my-fix-branch
     ```
 
-6. In GitHub, send a pull request to `cohesity/community-automation-samples:master`.
+6. In GitHub, send a pull request to `cohesity/community-automation-samples:main`.
 
 ## <a name="suggest"></a> Suggestions and Feedback :raised_hand:
 
