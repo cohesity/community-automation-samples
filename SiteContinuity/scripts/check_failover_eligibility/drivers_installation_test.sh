@@ -8,10 +8,9 @@
 # We try to install all the required drivers
 # ("xen-blkfront" "xen-netfront" "nvme" "ena") in the $TESTDIR directory using
 # function f_try_dummy_drivers_installation.
-# We copy the /boot, /etc and some other directories(provided in CopyDirArray)
-# and mount some directories provided in (MountDirArray1 and MountDirArray2).
-# into the $TESTDIR and try installing the drivers in $TEST_BOOT_DIR by doing
-# chroot on $TESTDIR.
+# We copy directories provided in CopyDirArray and mount directories provided
+# in MountDirArray1 and MountDirArray2 into the $TESTDIR and try installing the
+# drivers in $TEST_BOOT_DIR by doing chroot on $TESTDIR.
 #
 # For Ubuntu:
 # We try to install all the required drivers ("nvme" "ena") in the $TESTDIR
@@ -40,6 +39,7 @@ f_is_ubuntu() {
   count=$(grep --only-matching --ignore-case 'ubuntu' /etc/*release | wc -l)
 
   if [ $count != 0 ]; then
+    echo "VM is Ubuntu" | tee --append $LOGFILE
     return $(true)
   fi
 
@@ -51,16 +51,16 @@ f_is_ubuntu() {
 # Since some commands are different for CentOS.
 #------------------------------------------------------------------------------
 f_is_centos(){
-    # Check if VM is CentOS or not.
-    centos_count=$(grep --only-matching --ignore-case 'CentOS' /etc/*release | wc -l)
+  # Check if VM is CentOS or not.
+  centos_count=$(grep --only-matching --ignore-case 'CentOS' /etc/*release | wc -l)
 
-    if [[ $centos_count != 0 ]]; then
-        # VM is CentOS.
-        echo "VM is CentOS" | tee --append $LOGFILE
-        return $(true)
-    fi
+  if [[ $centos_count != 0 ]]; then
+    # VM is CentOS.
+    echo "VM is CentOS" | tee --append $LOGFILE
+    return $(true)
+  fi
 
-    return $(false)
+  return $(false)
 }
 
 #------------------------------------------------------------------------------
@@ -68,20 +68,20 @@ f_is_centos(){
 # Since some commands are different for RHEL.
 #------------------------------------------------------------------------------
 f_is_rhel(){
-    # Check if VM is RHEL or not.
-    rhel_count=$(grep --only-matching --ignore-case 'Red Hat' /etc/*release | wc -l)
+  # Check if VM is RHEL or not.
+  rhel_count=$(grep --only-matching --ignore-case 'Red Hat' /etc/*release | wc -l)
 
-    if [[ $rhel_count != 0 ]]; then
-        # VM is RHEL.
-        echo "VM is RHEL" | tee --append $LOGFILE
-        return $(true)
-    fi
+  if [[ $rhel_count != 0 ]]; then
+    # VM is RHEL.
+    echo "VM is RHEL" | tee --append $LOGFILE
+    return $(true)
+  fi
 
-    return $(false)
+  return $(false)
 }
 
 #------------------------------------------------------------------------------
-# Method to mount the helper directories like /sys, /proc from $TESTDIR.
+# Method to mount the helper directories like /sys, /proc to $TESTDIR.
 #------------------------------------------------------------------------------
 f_mount_helper_dirs() {
   # Check if the directory exists or already mounted before mounting the
