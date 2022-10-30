@@ -20,6 +20,8 @@ The script is a shell script. Following are the prerequisites:
 * Copy the script to any directory (Ex: /cohesity-scripts/
 * Change the permissions on the script so that you have execute privilege
 * Go to the directory where script is kept: cd /cohesity-scripts/
+* Edit the script and add username and password for getting authentication token
+* Update the variable "cohesityhost" to a reachable cohesity ip, vip, or fqdn
 * Run the script as follows: ./physical-objectlevelcancel-shell.sh -G \<group-name\> -O \<object-name\>
 
   Where,
