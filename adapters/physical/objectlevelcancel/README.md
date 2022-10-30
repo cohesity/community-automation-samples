@@ -22,10 +22,10 @@ The script is a shell script. Following are the prerequisites:
 * Go to the directory where script is kept: cd /cohesity-scripts/
 * Run the script as follows: ./physical-objectlevelcancel-shell.sh -G <group-name> -O <object-name>
 
-Where,
+  Where,
 
-object-name = The name of the object as it shows on Cohesity UI
-group-name = The name of the group of which the object is a part of
+  object-name = The name of the object as it shows on Cohesity UI
+  group-name = The name of the group of which the object is a part of
 
 ### Have any question
 
