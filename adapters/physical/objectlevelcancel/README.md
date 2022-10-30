@@ -14,3 +14,19 @@ The script is a shell script. Following are the prerequisites:
 1. A linux client with "jq" installed
 2. The linux client should be able to communicate with cohesity cluster over port 443
 
+
+### Usage
+
+* Copy the script to any directory (Ex: /cohesity-scripts/
+* Change the permissions on the script so that you have execute privilege
+* Go to the directory where script is kept: cd /cohesity-scripts/
+* Run the script as follows: ./physical-objectlevelcancel-shell.sh -G <group-name> -O <object-name>
+
+Where,
+
+object-name = The name of the object as it shows on Cohesity UI
+group-name = The name of the group of which the object is a part of
+
+### Have any question
+
+Send me an email at manoj.mittal@cohesity.com
