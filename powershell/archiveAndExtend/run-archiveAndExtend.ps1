@@ -1,0 +1,27 @@
+./archiveAndExtend.ps1 -vip mycluster `
+                       -username myuser `
+                       -domain mydomain.net `
+                       -policyNames 'my policy', 'another policy' `
+                       -archiveDaily 5 `
+                       -dailyVault myDailyTarget `
+                       -keepWeekly 31 `
+                       -archiveWeekly 31 `
+                       -weeklyVault myWeeklyTarget `
+                       -dayOfWeek Sunday `
+                       -keepMonthly 90 `
+                       -archiveMonthly 180 `
+                       -monthlyVault myMonthlyTarget `
+                       -dayOfMonth -1 `
+                       -keepQuarterly 180 `
+                       -archiveQuarterly 365 `
+                       -quarterlyVault myQuarterlyVault `
+                       -quarterlyDates '04-07', '07-01' `
+                       -keepYearly 180 `
+                       -archiveYearly 3650 `
+                       -yearlyVault myYearlyVault `
+                       -dayOfYear -1 `
+                       -keepSpecial 180 `
+                       -archiveSpecial 3650 `
+                       -specialVault mySpecialVault `
+                       -specialDates '03-21', '07-21' `
+                       -commit
