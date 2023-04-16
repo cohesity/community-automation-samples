@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """BackupNow for python"""
 
-# version 2023.04.11
+# version 2023.04.14
 
 # version history
 # ===============
@@ -9,6 +9,8 @@
 # 2023.02.17 - implement retry on get protectionJobs - added error code 7
 # 2023.03.29 - version bump
 # 2023.04.11 - fixed bug in line 70 - last run is None error, added metafile check for new run
+# 2023.04.13 - fixed log archiving bug
+# 2023.04.14 - fixed metadatafile watch bug
 
 # extended error codes
 # ====================
@@ -27,6 +29,7 @@
 from pyhesity import *
 from time import sleep
 from datetime import datetime
+from sys import exit
 import codecs
 
 # command line arguments
@@ -421,13 +424,22 @@ jobData = {
 }
 
 # add objects (non-DB)
-if sourceIds is not None:
+usemetadatafile = False
+if sourceIds is not None and len(sourceIds) > 0:
     if metadatafile is not None:
+        usemetadatafile = True
         jobData['runNowParameters'] = []
         for sourceId in sourceIds:
             jobData['runNowParameters'].append({"sourceId": sourceId, "physicalParams": {"metadataFilePath": metadatafile}})
     else:
         jobData['sourceIds'] = sourceIds
+else:
+    if metadatafile is not None:
+        out('-o, --objectname required when using -m, --metadatafile')
+        if extendederrorcodes is True:
+            bail(3)
+        else:
+            bail(1)
 
 # add objects (DB)
 if len(runNowParameters) > 0:
@@ -451,7 +463,7 @@ if localonly is not True and noreplica is not True:
                     "type": "kRemote"
                 })
 # archival
-if localonly is not True and noarchive is not True:
+if localonly is not True and noarchive is not True and backupType != 'kLog':
     if 'snapshotArchivalCopyPolicies' in policy and archiveTo is None:
         for archive in policy['snapshotArchivalCopyPolicies']:
             if archive['target'] not in [p.get('archivalTarget', None) for p in jobData['copyRunTargets']]:
@@ -568,7 +580,7 @@ if wait is True:
             runs = api('get', 'data-protect/protection-groups/%s/runs?numRuns=1&includeObjectDetails=false' % v2JobId, v=2)
             if runs is not None and 'runs' in runs and len(runs['runs']) > 0:
                 runs = runs['runs']
-        if runs is not None and 'runs' not in runs and len(runs) > 0 and metadatafile is not None:
+        if runs is not None and 'runs' not in runs and len(runs) > 0 and usemetadatafile is True:  # metadatafile is not None:
             for run in runs:
                 runDetail = api('get', '/backupjobruns?exactMatchStartTimeUsecs=%s&id=%s' % (run['localBackupInfo']['startTimeUsecs'], job['id']))
                 try:
@@ -578,6 +590,7 @@ if wait is True:
                         v2RunId = run['id']
                         break
                 except Exception:
+                    print('error getting metadata')
                     pass
         elif runs is not None and 'runs' not in runs and len(runs) > 0:
             newRunId = runs[0]['protectionGroupInstanceId']
