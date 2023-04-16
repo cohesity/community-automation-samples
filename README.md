@@ -4,9 +4,9 @@
   Author: Cohesity Inc
   -->
 
-## Overview
+# Overview
 
-This project is to host sample scripts or piece of automation that can be used by customers, SREs, SEs or anyone trying to automate certain workflow, written by any Cohesians. 
+This project is to host sample scripts or piece of automation that can be used by customers, SREs, SEs or anyone trying to automate certain workflow, written by any Cohesians.
 
 ## Table of contents :scroll:
 
