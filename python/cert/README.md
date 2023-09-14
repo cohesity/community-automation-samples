@@ -13,7 +13,7 @@ You can download the scripts using the following commands:
 
 ```bash
 # download commands
-curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/adHocProtectVM/cert.py
+curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/cert/cert.py
 curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity/pyhesity.py
 chmod +x cert.py
 # end download commands
