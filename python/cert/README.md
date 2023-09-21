@@ -29,8 +29,8 @@ Place both files in a folder together and run the main script like so:
 # end example
 ```
 
-```json
 cluster.json file sample
+```json
 {
     "primary": 
         {
