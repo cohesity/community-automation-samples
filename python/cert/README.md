@@ -30,6 +30,7 @@ Place both files in a folder together and run the main script like so:
 ```
 
 cluster.json file sample
+
 ```json
 {
     "primary": 
