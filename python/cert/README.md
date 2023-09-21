@@ -36,6 +36,7 @@ cluster.json file sample
         {
             "ip":"10.2.20.17", 
             "username":"admin",
+            "password":"1234",
             "mfaCode":"1234"
         },
     "targets": 
@@ -43,7 +44,8 @@ cluster.json file sample
         {
             "ip":"10.2.20.1", 
             "username":"admin", 
-            "password":"1234"
+            "password":"1234",
+            "mfaCode":"1234"
         }
     ]
 }
