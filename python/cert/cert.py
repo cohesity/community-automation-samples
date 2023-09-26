@@ -210,7 +210,8 @@ def set_gflag(ip):
         # Send an HTTP GET request with the cookies
         context = getContext()
         response = requests.put(url, verify=False, headers=context['HEADER'], data=gflag_json)
-        if response.status_code == 200:
+        response.status_code = 200
+        if response == 200:
             logger.info("Successfully updated gflag on Cluster "+ ip)
         else:
             logger.error(f"Updating gflag request failed with status code: {response.status_code}")
@@ -269,10 +270,14 @@ def main():
         print('authentication failed for Cluster %s'+ cluster_details['primary']['ip'])
         exit(1)
 
-    # # Get Cluster software version
+    # Get Cluster software version
     cluster_version = get_cluster_version(cluster_details['primary']['ip'], cluster_details['primary'])
     if not isinstance(cluster_version, dict):
         return cluster_version
+
+    if cluster_details.get('Targets') == None:
+        set_gflag(cluster_details['primary']['ip'])
+        return
 
     # Get Cohesity CA keys
     primary_key, cert = ca_keys()
@@ -281,4 +286,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-
