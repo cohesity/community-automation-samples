@@ -8,7 +8,7 @@ Contributor: Priyadharsini
 
 ## Components
 
-* cert.py.py: the main python script
+* cert.py: the main python script
 * pyhesity.py: the Cohesity python helper module
 
 You can download the scripts using the following commands:
@@ -25,7 +25,7 @@ Place both files in a folder together and run the main script like so:
 
 ```bash
 # example
-./cert.py.py --cluster cluster.json
+./cert.py --cluster cluster.json
 cluster.json file sample - Multi-Cluster
 {
     "primary": 
@@ -68,7 +68,7 @@ NOTE: scripted MFA via email is disabled
 
 The helper module provides functions to simplify operations such as authentication, api calls, storing encrypted passwords, and converting date formats. The module requires the requests python module.
 
-## The Python Main Module - cert.py.py
+## The Python Main Module - cert.py
 
 This module helps with bootstrapping each target cluster with primary cluster's Cohesity CA Keys
 
@@ -83,7 +83,11 @@ or
 ```bash
 sudo easy_install requests
 ```
+or
 
+```bash
+sudo python3 pip install requests
+```
 
 If you enter the wrong password, you can re-enter the password like so:
 
