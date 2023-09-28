@@ -210,8 +210,9 @@ def set_gflag(ip):
         # Send an HTTP GET request with the cookies
         context = getContext()
         response = requests.put(url, verify=False, headers=context['HEADER'], data=gflag_json)
-        response.status_code = 200
-        if response == 200:
+
+        # Check the response status code
+        if response.status_code == 200:
             logger.info("Successfully updated gflag on Cluster "+ ip)
         else:
             logger.error(f"Updating gflag request failed with status code: {response.status_code}")
@@ -275,7 +276,7 @@ def main():
     if not isinstance(cluster_version, dict):
         return cluster_version
 
-    if cluster_details.get('Targets') == None:
+    if cluster_details.get('targets') == None:
         set_gflag(cluster_details['primary']['ip'])
         return
 
