@@ -24,6 +24,9 @@ Place both files in a folder together and run the main script like so:
 ```bash
 # example
 ./cert.py --cluster cluster.json
+
+Multi-cluster Environment - Designate any cluster in your environment as primary cluster from which keys would be copied to all the other clusters. This is to obtain the set of keys to keep a uniform trust chain across all clusters
+
 cluster.json file sample - Multi-Cluster
 {
     "primary": 
@@ -42,7 +45,7 @@ cluster.json file sample - Multi-Cluster
     ]
 }
 
-Multi-cluster Environment - Designate any cluster in your environment as primary cluster from which keys would be copied to all the other clusters. This is to obtain the set of keys to keep a uniform trust chain across all clusters
+
 
 For Single Cluster Environment, there will be only primary cluster described on cluster.json
 
@@ -56,6 +59,33 @@ cluster.json file sample - Single Cluster
         }
 }
 
+Disaster-Recovery without MT
+
+./cert.py --cluster cluster.json --dr
+
+When --dr flag is passed, it signifies that the target clusters will be initialized with the source cluster keys and vice-versa.
+Its important to ensure that both the source and target clusters are provided as lists.
+
+cluster.json file sample 
+{
+    "sources": 
+        [
+            {
+            "ip":"10.2.20.17", 
+            "username":"admin",
+            "mfaCode":"1234"
+            }
+        ],
+    "targets": 
+    [
+        {
+            "ip":"10.2.20.1", 
+            "username":"admin", 
+            "password":"1234"
+        }
+    ]
+}
+
 If password is not provided with file, you will be prompted on terminal
 If MFA is enabled, please provide MFACode for Totp.
 NOTE: scripted MFA via email is disabled
@@ -66,7 +96,7 @@ NOTE: scripted MFA via email is disabled
 
 The helper module provides functions to simplify operations such as authentication, api calls, storing encrypted passwords, and converting date formats. The module requires the requests python module.
 
-## The Python Main Module - cert.py
+## The Python Main Module - cert.py.py
 
 This module helps with bootstrapping each target cluster with primary cluster's Cohesity CA Keys
 
@@ -81,11 +111,7 @@ or
 ```bash
 sudo easy_install requests
 ```
-or
 
-```bash
-sudo python3 pip install requests
-```
 
 If you enter the wrong password, you can re-enter the password like so:
 
