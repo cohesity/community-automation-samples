@@ -7,9 +7,7 @@ import sys
 import os
 import json
 import urllib3
-import os
 import shutil
-import pandas as pd
 # import pyhesity wrapper module
 from pyhesity import *
 
@@ -74,7 +72,7 @@ def get_cluster_version(ip):
     """
 
     # Supported release version for cert improvement
-    supported_version = ['6.8.1_u5_release', '6.8_rm_release']
+    supported_version = ['6.8.1_u5_release']
 
     try:
         # Send an HTTP GET request with the cookies
@@ -286,7 +284,7 @@ def authenticate(cluster_list, keys):
         cluster_version = get_cluster_version(each_ip['ip'])
 
         if cluster_version is None:
-            # exit if not supportted version
+            # exit if not supported version
             logger.error(f"Cluster {each_ip['ip']} is not in supported version")
             exit(1)
 
@@ -315,7 +313,7 @@ def get_keys_file(cluster_details):
 
     # Check if the folder exists
     if os.path.exists(folder_path) and os.path.isdir(folder_path):
-        keys_file = "keys.json"  # Replace with your JSON file name
+        keys_file = "keys.json"
 
         # Combine the folder path and JSON file name to create the full JSON file path
         keys_file_path = os.path.join(folder_path, keys_file)
@@ -505,6 +503,9 @@ def verify_dr_bootstrap(cluster_details):
         for target in cluster_details['targets']:
             if bootstrapped_clusters.get(source['ip']) is not None and target['ip'] in bootstrapped_clusters.get(source['ip']):
                 source_bootstrap_status = True
+            else:
+                source_bootstrap_status = False
+                break
 
 
     # verify if all sources are bootstrapped
@@ -512,6 +513,9 @@ def verify_dr_bootstrap(cluster_details):
         for target in cluster_details['sources']:
             if bootstrapped_clusters.get(source['ip']) is not None and target['ip'] in bootstrapped_clusters.get(source['ip']):
                 target_bootstrap_status = True
+            else:
+                target_bootstrap_status = False
+                break
 
     if source_bootstrap_status and target_bootstrap_status:
 
