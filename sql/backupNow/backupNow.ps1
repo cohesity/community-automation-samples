@@ -1,4 +1,4 @@
-# version 2023.09.02
+# version 2023.11.18
 
 # version history
 # ===============
@@ -11,9 +11,10 @@
 # 2023.07.04 - added -dbg switch to output payload to payload.json file
 # 2023.07.05 - updated payload to solve p11 error "TARGET_NOT_IN_POLICY_NOT_ALLOWED%!(EXTRA int64=0)"
 # 2023-08-14 - updated script to exit with failure on "TARGET_NOT_IN_POLICY_NOT_ALLOWED" and added extended error code 8
-# 2023-09-01 - updated to use "protectionJobs?isActive=true&onlyReturnBasicSummary=true", increased sleepTimeSecs to 360, increased waitForNewRunMinutes to 50
-# 2023-09-01b - added support for read replica
-# 2023-09-02 - optimized object ID lookup for Oracle, SQL and VMware
+# 2023-09-03 - added support for read replica, various optimizations and fixes, increased sleepTimeSecs to 360, increased waitForNewRunMinutes to 50
+# 2023-09-06 - added -timeoutSec 300, -noCache, granular sleep times, interactive mode
+# 2023-09-13 - improved error handling on start request, exit on kInvalidRequest
+# 2023-11-18 - tighter API call to find protection job
 
 # extended error codes
 # ====================
@@ -67,9 +68,31 @@ param (
     [Parameter()][int64]$cancelPreviousRunMinutes = 0,  # cancel previous run if it has been running long
     [Parameter()][int64]$statusRetries = 10,   # give up waiting for new run to appear
     [Parameter()][switch]$extendedErrorCodes,  # report failure-specific error codes
-    [Parameter()][int64]$sleepTimeSecs = 360,   # sleep seconds between status queries
+    [Parameter()][switch]$noCache,
+    [Parameter()][int64]$sleepTimeSecs = 360,  # sleep seconds between status queries
+    [Parameter()][int64]$startWaitTime = 60,
+    [Parameter()][int64]$cacheWaitTime = 60,
+    [Parameter()][int64]$retryWaitTime = 300,
+    [Parameter()][int64]$timeoutSec = 300,
+    [Parameter()][int64]$interactiveStartWaitTime = 15,
+    [Parameter()][int64]$interactiveRetryWaitTime = 30,
+    [Parameter()][switch]$interactive,
     [Parameter()][switch]$dbg
 )
+
+$cacheSetting = 'true'
+if($noCache){
+    $cacheSetting = 'false'
+    $cacheWaitTime = 0
+}
+
+if($interactive){
+    $cacheWaitTime = 0
+    $startWaitTime = $interactiveStartWaitTime
+    $retryWaitTime = $interactiveRetryWaitTime
+}
+
+# $payloadCache = @{}
 
 $finishedStates = @('kCanceled', 'kSuccess', 'kFailure', 'kWarning', '3', '4', '5', '6', 'Canceled', 'Succeeded', 'Failed', 'SucceededWithWarning')
 
@@ -85,7 +108,7 @@ if($waitForNewRunMinutes -lt 12){
     $waitForNewRunMinutes = 12
 }
 
-if($progress -or $enable){
+if($progress){
     $wait = $True
 }
 
@@ -201,10 +224,10 @@ function cancelRunningJob($job, $durationMinutes){
     if($durationMinutes -gt 0){
         $durationUsecs = $durationMinutes * 60000000
         $cancelTime = (dateToUsecs) - $durationUsecs
-        $runningRuns = api get "protectionRuns?jobId=$($job.id)&numRuns=10&excludeTasks=true&useCachedData=true" | Where-Object {$_.backupRun.status -notin $finishedStates}
+        $runningRuns = api get "protectionRuns?jobId=$($job.id)&numRuns=100&excludeTasks=true&useCachedData=$cacheSetting" -timeout $timeoutSec | Where-Object {$_.backupRun.status -notin $finishedStates}
         foreach($run in $runningRuns){
             if($run.backupRun.stats.startTimeUsecs -gt 0 -and $run.backupRun.stats.startTimeUsecs -le $cancelTime){
-                $null = api post "protectionRuns/cancel/$($job.id)" @{ "jobRunId" = $run.backupRun.jobRunId }
+                $null = api post "protectionRuns/cancel/$($job.id)" @{ "jobRunId" = $run.backupRun.jobRunId } -timeout $timeoutSec
                 output "Canceling previous job run"
             }
         }
@@ -216,17 +239,16 @@ if($backupType -in $backupTypeEnum.Keys){
     $backupType = $backupTypeEnum[$backupType]
 }
 
-# get cluster id
-$cluster = api get cluster
+Start-Sleep $cacheWaitTime
 
 # find the jobID
 $jobs = $null
 $jobRetries = 0
 while(! $jobs){
-    $jobs = api get "protectionJobs?isActive=true&onlyReturnBasicSummary=true&useCachedData=true"
+    $jobs = api get -v2 "data-protect/protection-groups?names=$jobName&isActive=true&isDeleted=false&pruneSourceIds=true&pruneExcludedSourceIds=true&useCachedData=$cacheSetting"
     if(! $jobs){
         $jobRetries += 1
-        if($jobRetries -eq 3){
+        if($jobRetries -eq $statusRetries){
             output "Timed out getting Job!" -warn
             if($extendedErrorCodes){
                 exit 7
@@ -234,23 +256,16 @@ while(! $jobs){
                 exit 1
             }
         }else{
-            Start-Sleep 15
+            Start-Sleep $retryWaitTime
         }
     }
 }
-$job = ($jobs | Where-Object name -ieq $jobName)
+$job = ($jobs.protectionGroups | Where-Object name -ieq $jobName)
 if($job){
     $policyId = $job.policyId
-    if($policyId.split(':')[0] -ne $cluster.id){
-        output "Job $jobName is not local to the cluster $($cluster.name)" -warn
-        if($extendedErrorCodes){
-            exit 3
-        }else{
-            exit 1
-        }
-    }
-    $jobID = $job.id
-    $v2JobId = "{0}:{1}:{2}" -f $cluster.id, $cluster.incarnationId, $jobId
+    $v2JobID = $job.id
+    $jobId = ($v2JobID -split ":")[2]
+    $jobName = $job.name
     $environment = $job.environment
     if($environment -eq 'kPhysicalFiles'){
         $environment = 'kPhysical'
@@ -265,14 +280,14 @@ if($job){
     }
     if($objects){
         if($environment -in @('kOracle', 'kSQL')){
-            $backupJob = api get "/backupjobs/$($jobID)?useCachedData=true"
-            $backupSources = api get "/backupsources?allUnderHierarchy=false&entityId=$($backupJob.backupJob.parentSource.id)&excludeTypes=5&useCachedData=true"
+            $backupJob = api get "/backupjobs/$($jobID)?useCachedData=$cacheSetting" -timeout $timeoutSec
+            $backupSources = api get "/backupsources?allUnderHierarchy=false&entityId=$($backupJob.backupJob.parentSource.id)&excludeTypes=5&useCachedData=$cacheSetting" -timeout $timeoutSec
         }elseif($environment -eq 'kVMware'){
-            $sources = api get "protectionSources/virtualMachines?useCachedData=true&id=$($job.parentSourceId)"
+            $sources = api get "protectionSources/virtualMachines?protected=true&useCachedData=$cacheSetting&vCenterId=$($job.parentSourceId)" -timeout $timeoutSec
         }elseif($environment -match 'kAWS'){
-            $sources = api get "protectionSources?environments=kAWS&useCachedData=true&id=$($job.parentSourceId)"
+            $sources = api get "protectionSources?environments=kAWS&useCachedData=$cacheSetting&id=$($job.parentSourceId)" -timeout $timeoutSec
         }else{
-            $sources = api get "protectionSources?environments=$environment&useCachedData=true&id=$($job.parentSourceId)"
+            $sources = api get "protectionSources?environments=$environment&useCachedData=$cacheSetting&id=$($job.parentSourceId)" -timeout $timeoutSec
         }
     }
 }else{
@@ -309,7 +324,7 @@ if($objects){
                         $selectedSources = @($selectedSources + $serverObjectId)
                     }
                     if($instance -or $db){                  
-                        if($environment -eq 'kOracle' -or $environment -eq 'kSQL'){ # $job.environmentParameters.sqlParameters.backupType -in @('kSqlVSSFile', 'kSqlNative')
+                        if($environment -eq 'kOracle' -or $environment -eq 'kSQL'){
                             $runNowParameter = $runNowParameters | Where-Object {$_.sourceId -eq $serverObjectId}
                             if(! $runNowParameter.databaseIds){
                                 $runNowParameter.databaseIds = @()
@@ -376,7 +391,9 @@ if($objects){
         }elseif($environment -eq 'kVMware'){
             $thisObject = $sources | Where-Object name -eq $object
             if($thisObject){
-                $objectId = $object.id
+                $objectId = $thisObject.id
+                $sourceIds += $objectId
+                $selectedSources = @($selectedSources + $objectId)
             }else{
                 output "Object $object not found" -warn
                 if($extendedErrorCodes){
@@ -406,7 +423,7 @@ $copyRunTargets = @()
 
 
 # retrieve policy settings
-$policy = api get "protectionPolicies/$policyId"
+$policy = api get "protectionPolicies/$policyId" -timeout $timeoutSec
 
 # replication
 if((! $localOnly) -and (! $noReplica)){
@@ -428,7 +445,7 @@ if((! $localOnly) -and (! $noReplica)){
 
 
 # archival
-if((! $localOnly) -and (! $noArchive) -and ($backupType -ne 'kLog')){
+if((! $localOnly) -and (! $noArchive) -and ($backupType -ne 'kLog' -or $environment -ne 'kSQL')){
     if($policy.PSObject.Properties['snapshotArchivalCopyPolicies'] -and (! $archiveTo)){
         foreach($archive in $policy.snapshotArchivalCopyPolicies){
             if(!($copyRunTargets | Where-Object {$_.archivalTarget.vaultName -eq $archive.target.vaultName})){
@@ -456,7 +473,7 @@ if((! $localOnly) -and (! $noReplica)){
                 exit 1
             }
         }
-        $remote = api get remoteClusters | Where-Object {$_.name -eq $replicateTo}
+        $remote = api get remoteClusters -timeout $timeoutSec | Where-Object {$_.name -eq $replicateTo}
         if ($remote) {
             $copyRunTargets = $copyRunTargets + @{
                 "daysToKeep"        = $keepReplicaFor;
@@ -489,7 +506,7 @@ if((! $localOnly) -and (! $noArchive)){
                 exit 1
             }
         }
-        $vault = api get vaults | Where-Object {$_.name -eq $archiveTo}
+        $vault = api get vaults -timeout $timeoutSec | Where-Object {$_.name -eq $archiveTo}
         if($vault){
             $copyRunTargets = $copyRunTargets + @{
                 "archivalTarget" = @{
@@ -546,13 +563,17 @@ if($objects){
 }
 
 # get last run id
-$runs = api get -v2 "data-protect/protection-groups/$v2JobId/runs?numRuns=1&includeObjectDetails=false&useCachedData=true"
+$runs = api get -v2 "data-protect/protection-groups/$v2JobId/runs?numRuns=1&includeObjectDetails=false&useCachedData=$cacheSetting" -timeout $timeoutSec
 if($null -ne $runs -and $runs.PSObject.Properties['runs']){
     $runs = @($runs.runs)
 }
 
+$lastRunId = 1
+$newRunId = 1
+$lastRunUsecs = 1662164882000000
 if($null -ne $runs -and $runs.Count -ne "0"){
     $newRunId = $lastRunId = $runs[0].protectionGroupInstanceId
+    $lastRunUsecs = $runs[0].localBackupInfo.startTimeUsecs
 }
 
 # run job
@@ -560,19 +581,53 @@ if($dbg){
     $jobdata | ConvertTo-Json -Depth 99 | Out-File -FilePath 'payload.json'
 }
 
-$result = api post ('protectionJobs/run/' + $jobID) $jobdata # -quiet
+if($backupType -ne 'kRegular'){
+    $jobdata['usePolicyDefaults'] = $false
+}
+
+$result = api post ('protectionJobs/run/' + $jobID) $jobdata -timeout $timeoutSec -quiet
 $reportWaiting = $True
 $now = Get-Date
 $waitUntil = $now.AddMinutes($waitMinutesIfRunning)
 while($result -ne ""){
-    if(($cohesity_api.last_api_error | ConvertFrom-Json).message -match "TARGET_NOT_IN_POLICY_NOT_ALLOWED"){
-        output "TARGET_NOT_IN_POLICY_NOT_ALLOWED" -quiet
-        if($extendedErrorCodes){
-            exit 8
+    $runError = $cohesity_api.last_api_error
+    if($runError -match "message"){
+        $runError = $runError | ConvertFrom-Json
+        $errorCode = $runError.errorCode
+        $message = $runError.message
+        if($message -notmatch "Backup job has an existing active backup run" -and $message -notmatch "Protection group can only have one active backup run at a time"){
+            output $message -warn
+            if($message -match "TARGET_NOT_IN_POLICY_NOT_ALLOWED"){
+                if($extendedErrorCodes){
+                    exit 8
+                }else{
+                    exit 1
+                }
+            }
+            if($errorCode -eq "KInvalidRequest"){
+                if($extendedErrorCodes){
+                    exit 3
+                }else{
+                    exit 1
+                }
+            }
         }else{
-            exit 1
+            if($cancelPreviousRunMinutes -gt 0){
+                cancelRunningJob $job $cancelPreviousRunMinutes
+            }
+            if($reportWaiting){
+                if($abortIfRunning){
+                    output "job is already running"
+                    exit 0
+                }
+                output "Waiting for existing job run to finish..."
+                $reportWaiting = $false
+            }
         }
+    }else{
+        output $runError -warn
     }
+
     if((Get-Date) -gt $waitUntil){
         output "Timed out waiting for existing run to finish" -warn
         if($extendedErrorCodes){
@@ -581,19 +636,9 @@ while($result -ne ""){
             exit 1
         }
     }
-    if($cancelPreviousRunMinutes -gt 0){
-        cancelRunningJob $job $cancelPreviousRunMinutes
-    }
-    if($reportWaiting){
-        if($abortIfRunning){
-            output "job is already running"
-            exit 0
-        }
-        output "Waiting for existing job run to finish..."
-        $reportWaiting = $false
-    }
-    Start-Sleep $sleepTimeSecs
-    $result = api post ('protectionJobs/run/' + $jobID) $jobdata -quiet
+
+    Start-Sleep $retryWaitTime
+    $result = api post ('protectionJobs/run/' + $jobID) $jobdata -timeout $timeoutSec -quiet
 }
 output "Running $jobName..."
 
@@ -610,14 +655,14 @@ if($wait -or $progress){
                 exit 1
             }
         }
-        Start-Sleep 15
+        Start-Sleep $startWaitTime
         if($selectedSources.Count -gt 0){
-            $runs = api get -v2 "data-protect/protection-groups/$v2JobId/runs?numRuns=10&includeObjectDetails=true&useCachedData=true"
+            $runs = api get -v2 "data-protect/protection-groups/$v2JobId/runs?numRuns=10&includeObjectDetails=true&useCachedData=$cacheSetting&startTimeUsecs=$lastRunUsecs" -timeout $timeoutSec
             if($null -ne $runs -and $runs.PSObject.Properties['runs']){
                 $runs = @($runs.runs | Where-Object {$selectedSources[0] -in $_.objects.object.id})
             }
         }else{
-            $runs = api get -v2 "data-protect/protection-groups/$v2JobId/runs?numRuns=1&includeObjectDetails=false&useCachedData=true"
+            $runs = api get -v2 "data-protect/protection-groups/$v2JobId/runs?numRuns=1&includeObjectDetails=false&useCachedData=$cacheSetting&startTimeUsecs=$lastRunUsecs" -timeout $timeoutSec
             if($null -ne $runs -and $runs.PSObject.Properties['runs']){
                 $runs = @($runs.runs)
             }
@@ -628,7 +673,7 @@ if($wait -or $progress){
         $runs = $runs | Where-Object protectionGroupInstanceId -gt $lastRunId
         if($null -ne $runs -and $runs.Count -ne "0" -and $useMetadataFile -eq $True){
             foreach($run in $runs){
-                $runDetail = api get "/backupjobruns?exactMatchStartTimeUsecs=$($run.localBackupInfo.startTimeUsecs)&id=$($job.id)&useCachedData=true"
+                $runDetail = api get "/backupjobruns?exactMatchStartTimeUsecs=$($run.localBackupInfo.startTimeUsecs)&id=$($job.id)&useCachedData=$cacheSetting" -timeout $timeoutSec
                 $metadataFilePath = $runDetail[0].backupJobRuns.protectionRuns[0].backupRun.additionalParamVec[0].physicalParams.metadataFilePath
                 if($metadataFilePath -eq $metaDataFile){
                     $newRunId = $run.protectionGroupInstanceId
@@ -643,7 +688,7 @@ if($wait -or $progress){
         if($newRunId -gt $lastRunId){
             break
         }
-        Start-Sleep $sleepTimeSecs
+        Start-Sleep $retryWaitTime
     }
     output "New Job Run ID: $v2RunId"
 }
@@ -654,10 +699,10 @@ if($wait -or $progress){
     $lastProgress = -1
     $lastStatus = 'unknown'
     while ($lastStatus -notin $finishedStates){
-        Start-Sleep 15
+        Start-Sleep $sleepTimeSecs
         $bumpStatusCount = $false
         try {
-            $run = api get -v2 "data-protect/protection-groups/$v2JobId/runs/$($v2RunId)?includeObjectDetails=false&useCachedData=true"
+            $run = api get -v2 "data-protect/protection-groups/$v2JobId/runs/$($v2RunId)?includeObjectDetails=false&useCachedData=$cacheSetting" -timeout $timeoutSec
             if($run){
                 if($run.PSObject.Properties['localBackupInfo']){
                     if($run.localBackupInfo.PSObject.Properties['status']){
@@ -668,11 +713,11 @@ if($wait -or $progress){
                     $bumpStatusCount = $True
                 }
                 try{
-                    if($progress -and $lastProgress -ne 100){
-                        Start-Sleep 15
+                    if($interactive -and $progress -and $lastProgress -ne 100){
+                        Start-Sleep $startWaitTime
                         if($run.localBackupInfo.PSObject.Properties['progressTaskId']){
                             $progressPath = $run.localBackupInfo.progressTaskId
-                            $progressMonitor = api get "/progressMonitors?taskPathVec=$progressPath&excludeSubTasks=true&includeFinishedTasks=false"
+                            $progressMonitor = api get "/progressMonitors?taskPathVec=$progressPath&excludeSubTasks=true&includeFinishedTasks=false" -timeout $timeoutSec
                             $percentComplete = $progressMonitor.resultGroupVec[0].taskVec[0].progress.percentFinished
                             $percentComplete = [math]::Round($percentComplete, 0)
                         }
@@ -694,7 +739,7 @@ if($wait -or $progress){
         if($lastStatus -in $finishedStates){
             break
         }
-        Start-Sleep ($sleepTimeSecs - 15)
+        # Start-Sleep ($sleepTimeSecs - $startWaitTime)
         if($bumpStatusCount -eq $True){
             $statusRetryCount += 1
         }

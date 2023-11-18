@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """BackupNow for python"""
 
-# version 2023.09.13
+# version 2023.11.18
 
 # version history
 # ===============
@@ -17,6 +17,7 @@
 # 2023-09-03 - added support for read replica, various optimizations and fixes, increased sleepTimeSecs to 360, increased newruntimeoutsecs to 3000
 # 2023-09-06 - added --timeoutsec 300, --nocache, granular sleep times, interactive mode, default sleepTimeSecs 3000
 # 2023-09-13 - improved error handling on start request, exit on kInvalidRequest
+# 2023-11-18 - tighter API call to find protection job
 
 # extended error codes
 # ====================
@@ -237,7 +238,7 @@ if apiconnected() is False:
         bail(1)
 
 sources = {}
-cluster = api('get', 'cluster', timeout=timeoutsec)
+# cluster = api('get', 'cluster', timeout=timeoutsec)
 
 
 # get object ID
@@ -268,18 +269,18 @@ def getObjectId(objectName):
     return d['_object_id']
 
 
-def cancelRunningJob(job, durationMinutes):
+def cancelRunningJob(job, durationMinutes, v1JobId):
     if durationMinutes > 0:
         durationUsecs = durationMinutes * 60000000
         nowUsecs = dateToUsecs(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         cancelTime = nowUsecs - durationUsecs
-        runningRuns = api('get', 'protectionRuns?jobId=%s&numRuns=100&excludeTasks=true&useCachedData=%s' % (job['id'], cacheSetting), timeout=timeoutsec)
+        runningRuns = api('get', 'protectionRuns?jobId=%s&numRuns=100&excludeTasks=true&useCachedData=%s' % (v1JobId, cacheSetting), timeout=timeoutsec)
         if runningRuns is not None and len(runningRuns) > 0:
             for run in runningRuns:
                 if 'backupRun' in run and 'status' in run['backupRun']:
                     if run['backupRun']['status'] not in finishedStates and 'stats' in run['backupRun'] and 'startTimeUsecs' in run['backupRun']['stats']:
                         if run['backupRun']['stats']['startTimeUsecs'] < cancelTime:
-                            result = api('post', 'protectionRuns/cancel/%s' % job['id'], {"jobRunId": run['backupRun']['jobRunId']}, timeout=timeoutsec)
+                            result = api('post', 'protectionRuns/cancel/%s' % v1JobId, {"jobRunId": run['backupRun']['jobRunId']}, timeout=timeoutsec)
                             out('Canceling previous job run')
 
 
@@ -287,8 +288,9 @@ def cancelRunningJob(job, durationMinutes):
 jobs = None
 jobRetries = 0
 while jobs is None:
-    jobs = api('get', 'protectionJobs?isActive=true&onlyReturnBasicSummary=true&useCachedData=%s' % cacheSetting)
-    if jobs is None or 'error' in jobs:
+    jobs = api('get', 'data-protect/protection-groups?names=%s&isActive=true&isDeleted=false&pruneSourceIds=true&pruneExcludedSourceIds=true&useCachedData=%s' % (jobName, cacheSetting), v=2)
+    # jobs = api('get', 'protectionJobs?isActive=true&onlyReturnBasicSummary=true&useCachedData=%s' % cacheSetting)
+    if jobs is None or 'error' in jobs or 'protectionGroups' not in jobs:
         jobs = None
         jobRetries += 1
         if jobRetries == 3:
@@ -300,7 +302,14 @@ while jobs is None:
         else:
             sleep(retrywaittime)
 
-job = [job for job in jobs if job['name'].lower() == jobName.lower() and ('isActive' not in job or job['isActive'] is not False)]
+if jobs['protectionGroups'] is None:
+    out("Job '%s' not found" % jobName)
+    if extendederrorcodes is True:
+        bail(3)
+    else:
+        bail(1)
+
+job = [job for job in jobs['protectionGroups'] if job['name'].lower() == jobName.lower()]
 
 if not job:
     out("Job '%s' not found" % jobName)
@@ -310,7 +319,10 @@ if not job:
         bail(1)
 else:
     job = job[0]
-    v2JobId = '%s:%s:%s' % (cluster['id'], cluster['incarnationId'], job['id'])
+    v2JobId = job['id']
+    v1JobId = v2JobId.split(':')[2]
+    jobName = job['name']
+    # v2JobId = '%s:%s:%s' % (cluster['id'], cluster['incarnationId'], job['id'])
     environment = job['environment']
     if environment == 'kPhysicalFiles':
         environment = 'kPhysical'
@@ -322,7 +334,7 @@ else:
             bail(1)
     if objectnames is not None:
         if environment in ['kOracle', 'kSQL']:
-            backupJob = api('get', '/backupjobs/%s?useCachedData=%s' % (job['id'], cacheSetting), timeout=timeoutsec)
+            backupJob = api('get', '/backupjobs/%s?useCachedData=%s' % (v1JobId, cacheSetting), timeout=timeoutsec)
             backupSources = api('get', '/backupsources?allUnderHierarchy=false&entityId=%s&excludeTypes=5&useCachedData=%s' % (backupJob[0]['backupJob']['parentSource']['id'], cacheSetting), timeout=timeoutsec)
         elif environment == 'kVMware':
             sources = api('get', 'protectionSources/virtualMachines?vCenterId=%s&protected=true&useCachedData=%s' % (job['parentSourceId'], cacheSetting), timeout=timeoutsec)
@@ -620,7 +632,7 @@ waitUntil = nowUsecs + (waitminutesifrunning * 60000000)
 reportWaiting = True
 if debugger:
     print(':DEBUG: waiting for new run to be accepted')
-runNow = api('post', "protectionJobs/run/%s" % job['id'], jobData, quiet=True, timeout=timeoutsec)
+runNow = api('post', "protectionJobs/run/%s" % v1JobId, jobData, quiet=True, timeout=timeoutsec)
 while runNow != "":
     runError = LAST_API_ERROR()
     if 'Protection group can only have one active backup run at a time' not in runError and 'Backup job has an existing active backup run' not in runError:
@@ -637,7 +649,7 @@ while runNow != "":
                 bail(1)
     else:
         if cancelpreviousrunminutes > 0:
-            cancelRunningJob(job, cancelpreviousrunminutes)
+            cancelRunningJob(job, cancelpreviousrunminutes, v1JobId)
         if reportWaiting is True:
             if abortIfRunning:
                 out('job is already running')
@@ -654,9 +666,9 @@ while runNow != "":
             bail(1)
     sleep(retrywaittime)
     if debugger:
-        runNow = api('post', "protectionJobs/run/%s" % job['id'], jobData, timeout=timeoutsec)
+        runNow = api('post', "protectionJobs/run/%s" % v1JobId, jobData, timeout=timeoutsec)
     else:
-        runNow = api('post', "protectionJobs/run/%s" % job['id'], jobData, quiet=True, timeout=timeoutsec)
+        runNow = api('post', "protectionJobs/run/%s" % v1JobId, jobData, quiet=True, timeout=timeoutsec)
 out("Running %s..." % jobName)
 
 # wait for new job run to appear
@@ -676,7 +688,7 @@ if wait is True:
             runs = [r for r in runs if r['protectionGroupInstanceId'] > lastRunId]
         if runs is not None and 'runs' not in runs and len(runs) > 0 and usemetadatafile is True:  # metadatafile is not None:
             for run in runs:
-                runDetail = api('get', '/backupjobruns?exactMatchStartTimeUsecs=%s&id=%s&useCachedData=%s' % (run['localBackupInfo']['startTimeUsecs'], job['id'], cacheSetting), timeout=timeoutsec)
+                runDetail = api('get', '/backupjobruns?exactMatchStartTimeUsecs=%s&id=%s&useCachedData=%s' % (run['localBackupInfo']['startTimeUsecs'], v1JobId, cacheSetting), timeout=timeoutsec)
                 try:
                     metadataFilePath = runDetail[0]['backupJobRuns']['protectionRuns'][0]['backupRun']['additionalParamVec'][0]['physicalParams']['metadataFilePath']
                     if metadataFilePath == metadatafile:

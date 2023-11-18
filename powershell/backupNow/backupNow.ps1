@@ -1,4 +1,4 @@
-# version 2023.09.13
+# version 2023.11.18
 
 # version history
 # ===============
@@ -14,6 +14,7 @@
 # 2023-09-03 - added support for read replica, various optimizations and fixes, increased sleepTimeSecs to 360, increased waitForNewRunMinutes to 50
 # 2023-09-06 - added -timeoutSec 300, -noCache, granular sleep times, interactive mode
 # 2023-09-13 - improved error handling on start request, exit on kInvalidRequest
+# 2023-11-18 - tighter API call to find protection job
 
 # extended error codes
 # ====================
@@ -91,7 +92,7 @@ if($interactive){
     $retryWaitTime = $interactiveRetryWaitTime
 }
 
-$payloadCache = @{}
+# $payloadCache = @{}
 
 $finishedStates = @('kCanceled', 'kSuccess', 'kFailure', 'kWarning', '3', '4', '5', '6', 'Canceled', 'Succeeded', 'Failed', 'SucceededWithWarning')
 
@@ -240,14 +241,11 @@ if($backupType -in $backupTypeEnum.Keys){
 
 Start-Sleep $cacheWaitTime
 
-# get cluster id
-$cluster = api get cluster -timeout $timeoutSec
-
 # find the jobID
 $jobs = $null
 $jobRetries = 0
 while(! $jobs){
-    $jobs = api get "protectionJobs?isDeleted=false&isActive=true&onlyReturnBasicSummary=true&useCachedData=$cacheSetting" -timeout $timeoutSec
+    $jobs = api get -v2 "data-protect/protection-groups?names=$jobName&isActive=true&isDeleted=false&pruneSourceIds=true&pruneExcludedSourceIds=true&useCachedData=$cacheSetting"
     if(! $jobs){
         $jobRetries += 1
         if($jobRetries -eq $statusRetries){
@@ -262,27 +260,16 @@ while(! $jobs){
         }
     }
 }
-$job = ($jobs | Where-Object name -ieq $jobName)
+$job = ($jobs.protectionGroups | Where-Object name -ieq $jobName)
 if($job){
     $policyId = $job.policyId
-    if($policyId.split(':')[0] -ne $cluster.id){
-        output "Job $jobName is not local to the cluster $($cluster.name)" -warn
-        if($extendedErrorCodes){
-            exit 3
-        }else{
-            exit 1
-        }
-    }
-    $jobID = $job.id
-    $v2JobId = "{0}:{1}:{2}" -f $cluster.id, $cluster.incarnationId, $jobId
+    $v2JobID = $job.id
+    $jobId = ($v2JobID -split ":")[2]
+    $jobName = $job.name
     $environment = $job.environment
     if($environment -eq 'kPhysicalFiles'){
         $environment = 'kPhysical'
     }
-    $payloadCache['jobId'] = $jobId
-    $payloadCache['v2JobId'] = $v2JobId
-    $payloadCache['environment'] = $environment
-    $payloadCache['jobName'] = $job.name
     if($environment -notin ('kOracle', 'kSQL') -and $backupType -eq 'kLog'){
         output "BackupType kLog not applicable to $environment jobs" -warn
         if($extendedErrorCodes){
@@ -337,7 +324,7 @@ if($objects){
                         $selectedSources = @($selectedSources + $serverObjectId)
                     }
                     if($instance -or $db){                  
-                        if($environment -eq 'kOracle' -or $environment -eq 'kSQL'){ # $job.environmentParameters.sqlParameters.backupType -in @('kSqlVSSFile', 'kSqlNative')
+                        if($environment -eq 'kOracle' -or $environment -eq 'kSQL'){
                             $runNowParameter = $runNowParameters | Where-Object {$_.sourceId -eq $serverObjectId}
                             if(! $runNowParameter.databaseIds){
                                 $runNowParameter.databaseIds = @()
