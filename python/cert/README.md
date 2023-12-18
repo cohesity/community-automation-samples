@@ -45,8 +45,6 @@ cluster.json file sample - Multi-Cluster
     ]
 }
 
-
-
 For Single Cluster Environment, there will be only primary cluster described on cluster.json
 
 cluster.json file sample - Single Cluster
@@ -96,27 +94,49 @@ NOTE: scripted MFA via email is disabled
 
 The helper module provides functions to simplify operations such as authentication, api calls, storing encrypted passwords, and converting date formats. The module requires the requests python module.
 
-## The Python Main Module - cert.py.py
+## The Python Main Module - cert.py
 
 This module helps with bootstrapping each target cluster with primary cluster's Cohesity CA Keys
 
 ### Installing the Prerequisites
 
 ```bash
-sudo yum install python-requests
+# using yum
+sudo yum install python3-requests
+
+# or using dnf
+sudo yum install python3-requests
+
+# or using easy_install
+sudo easy_install requests
+
+# or using pip
+pip3 install requests
 ```
 
-or
+### Using a Python Virtual Environment
 
 ```bash
-sudo easy_install requests
-```
+# Install virtualenv
+sudo pip3 install virtualenv
 
+# Create myenv
+python3 -m venv myenv
 
-If you enter the wrong password, you can re-enter the password like so:
+# Enter myenv
+source myenv/bin/activate
 
-```python
-> from pyhesity import *
-> apiauth(updatepw=True)
-Enter your password: *********************
+# Install requests in myenv
+pip3 install requests
+
+# download the cert.py script
+curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/cert/cert.py
+curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity/pyhesity.py
+chmod +x cert.py
+
+# run the cert.py script
+./cert.py --cluster cluster.json
+
+# Exit virtualenv
+deactivate
 ```
