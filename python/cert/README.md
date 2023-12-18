@@ -25,7 +25,9 @@ Place both files in a folder together and run the main script like so:
 # example
 ./cert.py --cluster cluster.json
 
-Multi-cluster Environment - Designate any cluster in your environment as primary cluster from which keys would be copied to all the other clusters. This is to obtain the set of keys to keep a uniform trust chain across all clusters
+Multi-cluster Environment - Designate any cluster in your environment as primary cluster from which keys would
+be copied to all the other clusters. This is to obtain the set of keys to keep a uniform trust chain across all
+clusters
 
 cluster.json file sample - Multi-Cluster
 {
