@@ -24,12 +24,13 @@ Place both files in a folder together and run the main script like so:
 ```bash
 # example
 ./cert.py --cluster cluster.json
+```
 
-Multi-cluster Environment - Designate any cluster in your environment as primary cluster
-from which keys would be copied to all the other clusters. This is to obtain the set of 
-keys to keep a uniform trust chain across all clusters
+Multi-cluster Environment - Designate any cluster in your environment as primary cluster from which keys would be copied to all the other clusters. This is to obtain the set of keys to keep a uniform trust chain across all clusters
 
 cluster.json file sample - Multi-Cluster
+
+```bash
 {
     "primary": 
         {
@@ -46,10 +47,13 @@ cluster.json file sample - Multi-Cluster
         }
     ]
 }
+```
 
 For Single Cluster Environment, there will be only primary cluster described on cluster.json
 
 cluster.json file sample - Single Cluster
+
+```bash
 {
     "primary": 
         {
@@ -58,16 +62,21 @@ cluster.json file sample - Single Cluster
             "mfaCode":"1234"
         }
 }
+```
 
 Disaster-Recovery without MT
 
+```bash
 ./cert.py --cluster cluster.json --dr
+```
 
 When --dr flag is passed, it signifies that the target clusters will be initialized with the 
 source cluster keys and vice-versa. Its important to ensure that both the source and target 
 clusters are provided as lists.
 
 cluster.json file sample 
+
+```bash
 {
     "sources": 
         [
@@ -86,12 +95,11 @@ cluster.json file sample
         }
     ]
 }
+```
 
-If password is not provided with file, you will be prompted on terminal
+If password is not provided with file, you will be prompted on terminal,
 If MFA is enabled, please provide MFACode for Totp.
 NOTE: scripted MFA via email is disabled
-# end example
-```
 
 ## The Python Helper Module - pyhesity.py
 
