@@ -123,6 +123,9 @@ sudo yum install python3-requests
 # or using dnf
 sudo dnf install python3-requests
 
+# or using apt
+sudo apt-get install python3-requests
+
 # or using easy_install
 sudo easy_install requests
 
