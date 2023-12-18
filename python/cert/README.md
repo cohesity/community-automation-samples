@@ -8,6 +8,7 @@ Contributor: Priyadharsini
 
 * cert.py: the main python script
 * pyhesity.py: the Cohesity python helper module
+* python requests module (see "Installing the Prerequisites" section below)
 
 You can download the scripts using the following commands:
 
@@ -19,16 +20,18 @@ chmod +x cert.py
 # end download commands
 ```
 
-Place both files in a folder together and run the main script like so:
+Place both files in a folder together. The basic form of the command is:
 
 ```bash
 # example
 ./cert.py --cluster cluster.json
 ```
 
+But we must first create the cluster.json file:
+
 Multi-cluster Environment - Designate any cluster in your environment as primary cluster from which keys would be copied to all the other clusters. This is to obtain the set of keys to keep a uniform trust chain across all clusters
 
-cluster.json file sample - Multi-Cluster
+cluster.json file sample - Multi-Cluster:
 
 ```bash
 {
@@ -51,7 +54,7 @@ cluster.json file sample - Multi-Cluster
 
 For Single Cluster Environment, there will be only primary cluster described on cluster.json
 
-cluster.json file sample - Single Cluster
+cluster.json file sample - Single Cluster:
 
 ```bash
 {
@@ -64,7 +67,7 @@ cluster.json file sample - Single Cluster
 }
 ```
 
-Disaster-Recovery without MT
+Disaster-Recovery without MT:
 
 ```bash
 ./cert.py --cluster cluster.json --dr
@@ -74,7 +77,7 @@ When --dr flag is passed, it signifies that the target clusters will be initiali
 source cluster keys and vice-versa. Its important to ensure that both the source and target 
 clusters are provided as lists.
 
-cluster.json file sample 
+cluster.json file sample:
 
 ```bash
 {
@@ -111,14 +114,14 @@ module.
 
 This module helps with bootstrapping each target cluster with primary cluster's Cohesity CA Keys
 
-### Installing the Prerequisites
+## Installing the Prerequisites
 
 ```bash
 # using yum
 sudo yum install python3-requests
 
 # or using dnf
-sudo yum install python3-requests
+sudo dnf install python3-requests
 
 # or using easy_install
 sudo easy_install requests
@@ -127,7 +130,7 @@ sudo easy_install requests
 pip3 install requests
 ```
 
-### Using a Python Virtual Environment
+Or, using a Python Virtual Environment
 
 ```bash
 # Install virtualenv
