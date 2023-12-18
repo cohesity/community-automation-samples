@@ -73,9 +73,7 @@ Disaster-Recovery without MT:
 ./cert.py --cluster cluster.json --dr
 ```
 
-When --dr flag is passed, it signifies that the target clusters will be initialized with the 
-source cluster keys and vice-versa. Its important to ensure that both the source and target 
-clusters are provided as lists.
+When --dr flag is passed, it signifies that the target clusters will be initialized with the source cluster keys and vice-versa. Its important to ensure that both the source and target clusters are provided as lists.
 
 cluster.json file sample:
 
@@ -106,9 +104,7 @@ NOTE: scripted MFA via email is disabled
 
 ## The Python Helper Module - pyhesity.py
 
-The helper module provides functions to simplify operations such as authentication, api calls,
-storing encrypted passwords, and converting date formats. The module requires the requests python 
-module.
+The helper module provides functions to simplify operations such as authentication, api calls, storing encrypted passwords, and converting date formats. The module requires the requests python module.
 
 ## The Python Main Module - cert.py
 
