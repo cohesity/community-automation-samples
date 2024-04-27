@@ -8,7 +8,7 @@
 
 This project is to host sample scripts or piece of automation that can be used by customers, SREs, SEs or anyone trying to automate certain workflow, written by any Cohesians.
 
-## Prerequisits
+## Prerequisites
 
 In order to contribute to this github repo, make sure you the following contents ready.
 
