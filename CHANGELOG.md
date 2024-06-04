@@ -9,6 +9,12 @@
 * [backupNow.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/backupNow) [`Fix`] fixed unintended replication/archival
 * [backupNow.py](https://github.com/cohesity/community-automation-samples/tree/main/python/backupNow) [`Fix`] fixed unintended replication/archival
 
+## 2024-05-30
+
+* [isilon-api.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/isilon-api) [`New`] API helper for Isilon scripts
+* [isilonCFTtest.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/isilonCFTtest) [`Update`] updated to support session cookie authentication
+* [isilonCreateCohesityUser.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/isilonCreateCohesityUser) [`Update`] updated to support session cookie authentication
+
 ## 2024-05-28
 
 * [obfuscateLogs.py](https://github.com/cohesity/community-automation-samples/tree/main/python/obfuscateLogs) [`Update`] expanded ignore paths
