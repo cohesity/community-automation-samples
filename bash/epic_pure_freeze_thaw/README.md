@@ -84,7 +84,7 @@ Under Additional Settings, under the Pre and Post Scripts option, configure the 
 * -i: epic instance name
 * -e: epic user (e.g. epicadm)
 * -v: volume groups to freeze (AIX only) e.g. EpicVolGroup1,EpicVolGroup2,EpicVolGroup3
-* -s: create a pure protection group snapshots
+* -s: create pure protection group snapshots (i.e. SafeMode snapshots)
 
 ## Example Parameters
 
