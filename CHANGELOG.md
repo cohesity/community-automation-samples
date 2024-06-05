@@ -1,5 +1,10 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-06-05
+
+* [isilon_api.py](https://github.com/cohesity/community-automation-samples/tree/main/python/isilon_api) [`New`] API helper for Isilon scripts
+* [isilonCFTtest.py](https://github.com/cohesity/community-automation-samples/tree/main/python/isilonCFTtest) [`Update`] updated to support session cookie authentication
+
 ## 2024-06-04
 
 * [restoreOracle-v2.py](https://github.com/cohesity/community-automation-samples/tree/main/oracle/python/restoreOracle-v2) [`Fix`] fixed shellvars syntax error
