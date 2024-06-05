@@ -149,7 +149,7 @@ $html += '</span>
     <th>Volumes</th>
 </tr>'
 
-$finishedStates = @('kCanceled', 'kSuccess', 'kFailure')
+$finishedStates = @('kCanceled', 'kSuccess', 'kFailure', 'kWarning')
 
 $vms = api get protectionSources/virtualMachines?protected=true
 $objects = $vms.name
