@@ -1,4 +1,4 @@
-# version 2023.12.13
+# version 2024.06.05
 # usage: ./backedUpFileList.ps1 -vip mycluster \
 #                               -username myuser \
 #                               -domain mydomain.net \
@@ -11,11 +11,17 @@
 ### process commandline arguments
 [CmdletBinding(PositionalBinding=$False)]
 param (
-    [Parameter(Mandatory = $True)][string]$vip, # the cluster to connect to (DNS name or IP)
-    [Parameter()][string]$username='helios', # username (local or AD)
-    [Parameter()][string]$password = $null,
-    [Parameter()][string]$domain = 'local', # local or AD domain
-    [Parameter()][switch]$useApiKey, # use API key for authentication
+    [Parameter()][string]$vip='helios.cohesity.com',
+    [Parameter()][string]$username = 'helios',
+    [Parameter()][string]$domain = 'local',
+    [Parameter()][string]$tenant,
+    [Parameter()][switch]$useApiKey,
+    [Parameter()][string]$password,
+    [Parameter()][switch]$noPrompt,
+    [Parameter()][switch]$mcm,
+    [Parameter()][string]$mfaCode,
+    [Parameter()][switch]$emailMfaCode,
+    [Parameter()][string]$clusterName,
     [Parameter(Mandatory = $True)][array]$sourceServer, # source server
     [Parameter(Mandatory = $True)][string]$jobName, # narrow search by job name
     [Parameter()][switch]$showVersions,
@@ -50,12 +56,31 @@ $volumeTypes = @(1, 6)
 ### source the cohesity-api helper code
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
 
-### authenticate
-if($useApiKey){
-    apiauth -vip $vip -username $username -domain $domain -useApiKey -password $password
-}else{
-    apiauth -vip $vip -username $username -domain $domain -password $password
+# authentication =============================================
+# demand clusterName for Helios/MCM
+if(($vip -eq 'helios.cohesity.com' -or $mcm) -and ! $clusterName){
+    Write-Host "-clusterName required when connecting to Helios/MCM" -ForegroundColor Yellow
+    exit 1
 }
+
+# authenticate
+apiauth -vip $vip -username $username -domain $domain -passwd $password -apiKeyAuthentication $useApiKey -mfaCode $mfaCode -sendMfaCode $emailMfaCode -heliosAuthentication $mcm -regionid $region -tenant $tenant -noPromptForPassword $noPrompt
+
+# exit on failed authentication
+if(!$cohesity_api.authorized){
+    Write-Host "Not authenticated" -ForegroundColor Yellow
+    exit 1
+}
+
+# select helios/mcm managed cluster
+if($USING_HELIOS){
+    $thisCluster = heliosCluster $clusterName
+    if(! $thisCluster){
+        exit 1
+    }
+}
+# end authentication =========================================
+
 
 function listdir($dirPath, $instance, $volumeInfoCookie=$null, $volumeName=$null, $cookie=$null){
     $thisDirPath = [System.Web.HttpUtility]::UrlEncode($dirPath).Replace('%2f%2f','%2F')
