@@ -11,6 +11,7 @@ You can download the scripts using the following commands:
 ```bash
 # download commands
 curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/isilonCFTtest/isilonCFTtest.py
+curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/isilon_api/isilon_api.py
 chmod +x isilonCFTtest.py
 # end download commands
 ```

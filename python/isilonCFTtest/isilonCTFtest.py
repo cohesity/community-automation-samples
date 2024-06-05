@@ -1,24 +1,17 @@
 #!/usr/bin/env python
 """Isilon Change File Tracking Performance Test"""
 
+from isilon_api import *
 from datetime import datetime, timedelta
 import time
 import json
-import requests
-import getpass
-import urllib3
-import base64
 import argparse
 import os
-
-### ignore unsigned certificates
-import requests.packages.urllib3
-requests.packages.urllib3.disable_warnings()
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 ### command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--isilon', type=str, required=True)
+parser.add_argument('-t','--port', default='8080')
 parser.add_argument('-u', '--username', type=str, required=True)
 parser.add_argument('-pwd', '--password', type=str, default=None)
 parser.add_argument('-p', '--path', type=str, default=None)
@@ -31,6 +24,7 @@ parser.add_argument('-c', '--deletesnapshots', action='store_true')
 args = parser.parse_args()
 
 isilon = args.isilon
+port = args.port
 username = args.username
 password = args.password
 path = args.path
@@ -40,52 +34,11 @@ secondsnapshot = args.secondsnapshot
 deletethissnapshot = args.deletethissnapshot
 deletesnapshots = args.deletesnapshots
 
+endpoint = isilon
+if ':' not in endpoint:
+    endpoint = '%s:%s' % (isilon, port)
 
-### convert usecs to datetime object
-def usecsToDateTime(uedate):
-    """Convert Unix Epoc Microseconds to Date String"""
-    uedate = int(uedate) / 1000000
-    return datetime.fromtimestamp(uedate)
-
-
-### convert date to usecs
-def dateToUsecs(dt=datetime.now()):
-    """Convert Date String to Unix Epoc Microseconds"""
-    if isinstance(dt, str):
-        dt = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
-    return int(time.mktime(dt.timetuple())) * 1000000
-
-
-def isilonAPI(method, uri, data=None):
-    url = baseurl + uri
-    try:
-        if method == 'get':
-            response = requests.get(url, headers=headers, verify=False)
-        if method == 'post':
-            response = requests.post(url, headers=headers, json=data, verify=False)
-        if method == 'put':
-            response = requests.put(url, headers=headers, json=data, verify=False)
-        if method == 'delete':
-            response = requests.delete(url, headers=headers, json=data, verify=False)
-        try:
-            responsejson = response.json()
-        except ValueError:
-            return ''
-        if responsejson is not None:
-            if 'errors' in responsejson:
-                if len(responsejson['errors']) > 0:
-                    if 'message' in responsejson['errors'][0]:
-                        if responsejson['errors'][0]['message'] == 'authorization required':
-                            print('authentication failed')
-                            exit()
-                        print(responsejson['errors'][0]['message'])
-                else:
-                    print(responsejson)
-                return None
-            else:
-                return responsejson
-    except requests.exceptions.RequestException as e:
-        print(e)
+isilonauth(endpoint=endpoint, username=username, password=password)
 
 
 def findSnapshot(snapname):
@@ -97,26 +50,17 @@ def findSnapshot(snapname):
     return None
 
 
-baseurl = 'https://%s:8080' % isilon
 now = datetime.now()
 
-# authentication
-if password is None:
-    password = getpass.getpass("Enter your password: ")
-
-authString = '%s:%s' % (username, password)
-encodedPassword = base64.b64encode(authString.encode('utf-8')).decode('utf-8')
-headers = {"Authorization": "Basic %s" % encodedPassword}
-
 # check licenses
-licenses = isilonAPI('get', '/platform/1/license/licenses')
+licenses = isilonapi('get', '/platform/1/license/licenses')
 license = [lic for lic in licenses['licenses'] if lic['name'] == 'SnapshotIQ']
 if license is None or len(license) == 0:
     print('\nThis Isilon is not licensed for SnapshotIQ\n')
     exit()
 
 # check changelistcreate job is enabled and get policy and priority settings
-jobTypes = isilonAPI('get', '/platform/1/job/types')
+jobTypes = isilonapi('get', '/platform/1/job/types')
 jobType = [t for t in jobTypes['types'] if t['id'] == 'ChangelistCreate']
 if jobType is None or len(jobType) == 0 or jobType[0]['enabled'] is not True:
     print('Change File Tracking is not enabled on this Isilon')
@@ -126,7 +70,7 @@ else:
     policy = jobType[0]['policy']
 
 # get list of snapshots
-snapshots = isilonAPI('get', '/platform/1/snapshot/snapshots')
+snapshots = isilonapi('get', '/platform/1/snapshot/snapshots')
 if path is not None and snapshots is not None and 'snapshots' in snapshots:
     snapshots['snapshots'] = [snap for snap in snapshots['snapshots'] if snap['path'].lower() == path.lower()]
 
@@ -151,7 +95,7 @@ if deletethissnapshot is not None:
     thisSnap = findSnapshot(deletethissnapshot)
     if thisSnap is not None:
         print('\nDeleting snapshot %s\n' % thisSnap['id'])
-        result = isilonAPI('delete', '/platform/1/snapshot/snapshots/%s' % thisSnap['id'])
+        result = isilonapi('delete', '/platform/1/snapshot/snapshots/%s' % thisSnap['id'])
     else:
         print('\nNo matching snapshot found\n')
     exit()
@@ -163,16 +107,16 @@ if deletesnapshots:
     if(os.path.isfile('cftStore.json') is True):
         os.remove('cftStore.json')
     if initialSnap is not None:
-        result = isilonAPI('delete', '/platform/1/snapshot/snapshots/%s' % initialSnap['id'])
+        result = isilonapi('delete', '/platform/1/snapshot/snapshots/%s' % initialSnap['id'])
     if finalSnap is not None:
-        result = isilonAPI('delete', '/platform/1/snapshot/snapshots/%s' % finalSnap['id'])
+        result = isilonapi('delete', '/platform/1/snapshot/snapshots/%s' % finalSnap['id'])
     exit()
 
 # avoid using an older second snapshot
 if initialSnap is not None and finalSnap is not None:
     if finalSnap['created'] <= initialSnap['created']:
         if finalSnap['name'] == 'cohesityCftTestSnap2':
-            result = isilonAPI('delete', '/platform/1/snapshot/snapshots/%s' % finalSnap['id'])
+            result = isilonapi('delete', '/platform/1/snapshot/snapshots/%s' % finalSnap['id'])
             finalSnap = None
         else:
             print('Invalid: second snapshot (%s) is older than the first snapshot (%s)' % (secondsnapshot, firstsnapshot))
@@ -184,7 +128,7 @@ if initialSnap is None:
         print('\nPath is required\n')
         exit()
     print('\nCreating initial snapshot, please wait for file changes, then re-run the script to calculate CFT performance')
-    initialSnap = isilonAPI('post', '/platform/1/snapshot/snapshots', {"name": firstsnapshot, "path": path})
+    initialSnap = isilonapi('post', '/platform/1/snapshot/snapshots', {"name": firstsnapshot, "path": path})
     if initialSnap is not None:
         print('New Snap ID: %s\n' % initialSnap['id'])
     if(os.path.isfile('cftStore.json') is True):
@@ -195,7 +139,7 @@ if initialSnap is None:
 if finalSnap is None:
     path = initialSnap['path']
     print('\nCreating second snapshot')
-    finalSnap = isilonAPI('post', '/platform/1/snapshot/snapshots', {"name": secondsnapshot, "path": path})
+    finalSnap = isilonapi('post', '/platform/1/snapshot/snapshots', {"name": secondsnapshot, "path": path})
     if finalSnap is not None:
         print('New Snap ID: %s' % finalSnap['id'])
     if os.path.isfile('cftStore.json') is True:
@@ -217,7 +161,7 @@ if os.path.isfile('cftStore.json') is False:
         }
     }
     print('\nCreating CFT Test Job')
-    job = isilonAPI('post', '/platform/1/job/jobs?_dc=%s' % nowMsecs, newCFTjob)
+    job = isilonapi('post', '/platform/1/job/jobs?_dc=%s' % nowMsecs, newCFTjob)
     jobId = job['id']
     startTimeUsecs = dateToUsecs()
     cftStore = open('cftStore.json', 'w')
@@ -237,7 +181,7 @@ startTimeUsecs = cftStore['startTimeUsecs']
 reportedWaiting = False
 
 while True:
-    reports = isilonAPI('get', '/platform/1/job/reports?job_type=ChangelistCreate')
+    reports = isilonapi('get', '/platform/1/job/reports?job_type=ChangelistCreate')
     if reports is not None and len(reports['reports']) > 4:
         reports = [rep for rep in reports['reports'] if rep['job_id'] == jobId]
         if reports is not None and len(reports) >= 4:
