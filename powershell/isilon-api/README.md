@@ -44,7 +44,7 @@ isilonAuth supports the following parameters:
 Once authenticated, we can make api calls:
 
 ```powershell
-isilonApi get "/scalemgmt/v2/nodes?fields=:all:"
+isilonApi get "/platform/1/license/licenses"
 ```
 
 The isilonApi function supports the following parameters:
