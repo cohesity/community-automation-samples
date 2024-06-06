@@ -1,7 +1,14 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-06-06
+
+* [updateVcenterCredentials.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/updateVcenterCredentials) [`New`] update vCenter source credentials
+* [restoreUDA.py](https://github.com/cohesity/community-automation-samples/tree/main/python/restoreUDA) [`Fix`] reordered snapshot selection by date
+
 ## 2024-06-05
 
+* [validateVMBackups.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/validateVMBackups) [`Fix`] added kWarning status
+* [backedUpFileList.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/backedUpFileList) [`Update`] modernized authentication 
 * [isilon_api.py](https://github.com/cohesity/community-automation-samples/tree/main/python/isilon_api) [`New`] API helper for Isilon scripts
 * [isilonCFTtest.py](https://github.com/cohesity/community-automation-samples/tree/main/python/isilonCFTtest) [`Update`] updated to support session cookie authentication
 
