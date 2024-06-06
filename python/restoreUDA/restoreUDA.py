@@ -111,6 +111,7 @@ for object in objects:
         snapshots = api('get', 'data-protect/objects/%s/snapshots?protectionGroupIds=%s' % (object['id'], jobInfo['protectionGroupId']), v=2)
         snapshots = [s for s in snapshots['snapshots'] if s['snapshotTimestampUsecs'] <= desiredPIT]
         if snapshots is not None and len(snapshots) > 0:
+            snapshots = sorted(snapshots, key=lambda snap: snap['snapshotTimestampUsecs'])
             if snapshots[0]['snapshotTimestampUsecs'] > latestSnapshotTimeStamp:
                 latestSnapshot = snapshots[0]
                 latestSnapshotTimeStamp = snapshots[0]['snapshotTimestampUsecs']
@@ -230,10 +231,10 @@ if wait is True:
     taskId = response['id'].split(':')[2]
     status = api('get', '/restoretasks/%s' % taskId)
     finishedStates = ['kSuccess', 'kFailed', 'kCanceled', 'kFailure']
-    while(status[0]['restoreTask']['performRestoreTaskState']['base']['publicStatus'] not in finishedStates):
+    while status[0]['restoreTask']['performRestoreTaskState']['base']['publicStatus'] not in finishedStates:
         sleep(15)
         status = api('get', '/restoretasks/%s' % taskId)
-    if(status[0]['restoreTask']['performRestoreTaskState']['base']['publicStatus'] == 'kSuccess'):
+    if status[0]['restoreTask']['performRestoreTaskState']['base']['publicStatus'] == 'kSuccess':
         print('Restore Completed Successfully')
         exit(0)
     else:
