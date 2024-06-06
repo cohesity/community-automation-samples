@@ -111,7 +111,7 @@ for object in objects:
         snapshots = api('get', 'data-protect/objects/%s/snapshots?protectionGroupIds=%s' % (object['id'], jobInfo['protectionGroupId']), v=2)
         snapshots = [s for s in snapshots['snapshots'] if s['snapshotTimestampUsecs'] <= desiredPIT]
         if snapshots is not None and len(snapshots) > 0:
-            snapshots = sorted(snapshots, key=lambda snap: snap['snapshotTimestampUsecs'])
+            snapshots = sorted(snapshots, key=lambda snap: snap['snapshotTimestampUsecs'], reverse=True)
             if snapshots[0]['snapshotTimestampUsecs'] > latestSnapshotTimeStamp:
                 latestSnapshot = snapshots[0]
                 latestSnapshotTimeStamp = snapshots[0]['snapshotTimestampUsecs']
