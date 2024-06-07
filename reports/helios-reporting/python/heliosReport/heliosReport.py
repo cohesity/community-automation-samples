@@ -19,6 +19,7 @@ parser.add_argument('-t', '--thismonth', action='store_true')
 parser.add_argument('-l', '--lastmonth', action='store_true')
 parser.add_argument('-y', '--days', type=int, default=7)
 parser.add_argument('-x', '--dayrange', type=int, default=180)
+parser.add_argument('-m', '--maxrecords', type=int, default=20000)
 parser.add_argument('-hr', '--hours', type=int, default=0)
 parser.add_argument('-n', '--units', type=str, choices=['MiB', 'GiB', 'TiB'], default='GiB')
 parser.add_argument('-r', '--reportname', type=str, default='Protection Runs')
@@ -50,6 +51,7 @@ filters = args.filter
 filterlist = args.filterlist
 filterproperty = args.filterproperty
 outputpath = args.outputpath
+maxrecords = args.maxrecords
 
 
 # gather server list
@@ -333,14 +335,14 @@ for cluster in sorted(selectedClusters, key=lambda c: c['name'].lower()):
             "sort": None,
             "timezone": timezone,
             "limit": {
-                "size": 10000,
+                "size": maxrecords,
             }
         }
         preview = api('post', 'components/%s/preview' % reportNumber, reportParams, reportingv2=True)
-        if len(preview['component']['data']) == 10000:
+        if len(preview['component']['data']) == maxrecords:
             print('Hit limit of records. Try reducing --dayrange (e.g. --dayrange 1)')
             exit()
-
+        print('    -')
         attributes = preview['component']['config']['xlsxParams']['attributeConfig']
         # headings
         if gotHeadings is False:

@@ -34,6 +34,8 @@ Place both files in a folder together and run the main script like so:
 * -t, --thismonth: (optional) set date range to this month
 * -l, --lastmonth: (optional) set date range to last month
 * -y, --days: (optional) limit report to last X days (default is 7)
+* -x, --dayrange: (optional) limit day range per API query (default is 180)
+* -m, --maxrecords: (optional) max number of records to retrieve per API query (default is 20000)
 * -hr, --hours: (optional) limit report to last X hours
 * -n, --units: (optional) MiB or GiB (default is MiB)
 * -r, --reportname: (optional) name of helios report (default is 'Protection Runs')
