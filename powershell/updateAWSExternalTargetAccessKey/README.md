@@ -24,12 +24,12 @@ Place both files in a folder together and run the main script like so:
 
 ```powershell
 # example
-./updateGenericNasCredentials.ps1 -vip mycluster `
-                                  -username myusername `
-                                  -domain mydomain.net `
-                                  -targetName mytarget `
-                                  -accessKey xxxxxxxxxxxxxxx `
-                                  -secretKey yyyyyyyyyyyyyyyyyyyyy
+./updateAWSExternalTargetAccessKey.ps1 -vip mycluster `
+                                       -username myusername `
+                                       -domain mydomain.net `
+                                       -targetName mytarget `
+                                       -accessKey xxxxxxxxxxxxxxx `
+                                       -secretKey yyyyyyyyyyyyyyyyyyyyy
 # end example
 ```
 
