@@ -29,6 +29,25 @@ chmod +x upgradeServer.py
 chmod +x testupgrade.sh
 ```
 
+## Authentication Parameters
+
+* -v, --vip: (optional) DNS or IP of the Cohesity cluster to connect to (default is helios.cohesity.com)
+* -u, --username: (optional) username to authenticate to Cohesity cluster (default is helios)
+* -d, --domain: (optional) domain of username (defaults to local)
+* -t, --tenant: (optional) multi-tenancy tenant name
+* -i, --useApiKey: (optional) use API key for authentication
+* -pwd, --password: (optional) password or API key
+* -np, --noprompt: (optional) do not prompt for password
+* -mcm, --mcm: (optional) connect through MCM
+* -c, --clustername: (optional) helios/mcm cluster to connect to
+* -m, --mfacode: (optional) MFA code for authentication
+* -e --emailmfacode: (optional) send MFA code via email
+
+## Other Parameters
+
+* -r, --release': e.g. '6.6.0d_u6_release-20221204_c03629f0'
+* -url, --url': e.g. '<http://192.168.1.195:5000/6.6.0d_u6_release-20221204_c03629f0>'
+
 ## Hosting the upgrade files
 
 Cohesity provides upgrade packages that can be downloaded at <http://downloads.cohesity.com/downloads>
