@@ -24,11 +24,11 @@ Place both files in a folder together and run the main script like so:
 
 ```powershell
 # example
-./updateGenericNasCredentials.ps1 -vip mycluster `
-                                  -username myusername `
-                                  -domain mydomain.net `
-                                  -targetName mytarget `
-                                  -privateKey "xxxxxxx"
+./updateCGPExternalTargetPrivateKey.ps1 -vip mycluster `
+                                        -username myusername `
+                                        -domain mydomain.net `
+                                        -targetName mytarget `
+                                        -privateKey "xxxxxxx"
 # end example
 ```
 
