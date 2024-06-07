@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Cohesity Python REST API Wrapper Module - 2024.03.15"""
+"""Cohesity Python REST API Wrapper Module - 2024.06.07"""
 
 ##########################################################################################
 # Change Log
@@ -33,6 +33,7 @@
 # 2024.02.28 - added support for helios.gov
 # 2024.03.15 - unhid value error
 # 2024.03.31 - fixed empty return
+# 2024.06.07 - added support for Entra ID (Open ID) authentication
 #
 ##########################################################################################
 # Install Notes
@@ -91,7 +92,7 @@ __all__ = ['api_version',
            'impersonate',
            'switchback']
 
-api_version = '2024.02.28'
+api_version = '2024.06.07'
 
 COHESITY_API = {
     'APIROOT': '',
@@ -128,7 +129,10 @@ def reportAuthError(e, quiet=None):
 
 
 ### authentication
-def apiauth(vip='helios.cohesity.com', username='helios', domain='local', password=None, updatepw=None, prompt=None, quiet=None, helios=False, useApiKey=False, tenantId=None, noretry=False, regionid=None, mfaType='Totp', mfaCode=None, emailMfaCode=False, timeout=300, newPassword=None):
+def apiauth(vip='helios.cohesity.com', username='helios', domain='local', password=None, newPassword=None,
+            updatepw=None, prompt=None, quiet=None, helios=False, useApiKey=False, tenantId=None, timeout=300,
+            noretry=False, regionid=None, mfaType='Totp', mfaCode=None, emailMfaCode=False, 
+            entraId=False, directoryId=None, clientId=None, scope='openid profile'):
     """authentication function"""
     global COHESITY_API
     global HELIOSCLUSTERS
@@ -155,7 +159,38 @@ def apiauth(vip='helios.cohesity.com', username='helios', domain='local', passwo
     COHESITY_API['HEADER'] = {'accept': 'application/json', 'content-type': 'application/json', 'User-Agent': 'pyhesity/%s' % api_version}
     COHESITY_API['APIROOT'] = 'https://' + vip + '/irisservices/api/v1'
     COHESITY_API['APIROOTv2'] = 'https://' + vip + '/v2/'
-    if vip.lower() in HELIOSENDPOINTS or helios is not False:
+    if entraId is True and vip.lower() in HELIOSENDPOINTS:
+        # entraId authentication
+        if directoryId is None:
+            directoryId = __getpassword(vip=vip, username=username, password=password, domain=domain, useApiKey=useApiKey, helios=helios, updatepw=updatepw, prompt=prompt, directoryId=True)
+        if clientId is None:
+            clientId = __getpassword(vip=vip, username=username, password=password, domain=domain, useApiKey=useApiKey, helios=helios, updatepw=updatepw, prompt=prompt, clientId=True)
+        if clientId is not None and directoryId is not None and scope is not None:
+            token = ProcessOidcToken(username=username, password=pwd, client_id=clientId, tenant_id=directoryId, scope=scope)
+            if token is not None:
+                COHESITY_API['HEADER'] = {'accept': 'application/json', 'content-type': 'application/json', 'X-OPEN-ID-AUTHZ-TOKEN': token, 'User-Agent': 'pyhesity/%s' % api_version}
+            else:
+                reportAuthError('Entra ID authentication failed', quiet=quiet)
+                return None
+        else:
+            reportAuthError('Entra ID authentication failed', quiet=quiet)
+            return None
+        URL = COHESITY_API['APIROOTMCM'] + 'clusters/connectionStatus'
+        HELIOSCLUSTERS = (COHESITY_API['SESSION'].get(URL, headers=COHESITY_API['HEADER'], verify=False, timeout=timeout)).json()
+        if HELIOSCLUSTERS is not None and 'message' in HELIOSCLUSTERS:
+            print(HELIOSCLUSTERS['message'])
+            if 'Authentication failed' in HELIOSCLUSTERS['message'] and noretry is False and prompt is not False:
+                apiauth(vip=vip, username=username, domain=domain, updatepw=True, prompt=prompt, helios=helios, useApiKey=useApiKey, quiet=True)
+            else:
+                reportAuthError('Helios/MCM authentication failed', quiet=quiet)
+                return None
+        if HELIOSCLUSTERS is not None and 'errorCode' not in HELIOSCLUSTERS:
+            CONNECTEDHELIOSCLUSTERS = [cluster for cluster in HELIOSCLUSTERS if cluster['connectedToCluster'] is True]
+            COHESITY_API['AUTHENTICATED'] = True
+            COHESITY_API['LAST_ERROR'] = 'OK'
+            if quiet is None:
+                print("Connected!")
+    elif vip.lower() in HELIOSENDPOINTS or helios is not False:
         # Helios/MCM API Key authentication
         COHESITY_API['HEADER'] = {'accept': 'application/json', 'content-type': 'application/json', 'apiKey': pwd, 'User-Agent': 'pyhesity/%s' % api_version}
         if regionid is not None:
@@ -180,7 +215,7 @@ def apiauth(vip='helios.cohesity.com', username='helios', domain='local', passwo
                 URL = COHESITY_API['APIROOTMCMv2'] + 'dms/regions'
                 REGIONS = (COHESITY_API['SESSION'].get(URL, headers=COHESITY_API['HEADER'], verify=False, timeout=timeout)).json()
                 if REGIONS is not None and 'message' in REGIONS:
-                    reportAuthError('Ccs authentication failed', quiet=quiet)
+                    reportAuthError('DMaaS authentication failed', quiet=quiet)
                     return None
                 if REGIONS is not None and 'errorCode' not in REGIONS:
                     COHESITY_API['AUTHENTICATED'] = True
@@ -406,6 +441,30 @@ def apiauth(vip='helios.cohesity.com', username='helios', domain='local', passwo
             reportAuthError(e, quiet=quiet)
 
 
+def ProcessOidcToken(username, password, client_id, tenant_id, scope='openid profile'):
+    callazure = None
+    Azbody = {
+        "grant_type": "password",
+        "client_id": client_id,
+        "scope": scope,
+        "username": username,
+        "password": password
+    }
+    AzureURL = "https://login.microsoftonline.com/%s/oauth2/v2.0/token" % tenant_id
+    AzureHeader = {
+        "content-type": "application/x-www-form-urlencoded;charset=utf-8",
+        "Accept": "application/json"
+    }
+
+    # try:
+    callazure = COHESITY_API['SESSION'].post(AzureURL, data=Azbody, headers=AzureHeader, verify=False)
+    return callazure.json()['id_token']
+    # except Exception:
+    #     pass
+    #     # print("EntraID authentication failed")
+    return None
+
+
 def apiconnected():
     return COHESITY_API['AUTHENTICATED']
 
@@ -505,7 +564,7 @@ def api(method, uri, data=None, quiet=None, mcm=None, mcmv2=None, v=1, reporting
         if response != '':
             if response.status_code == 204:
                 COHESITY_API['LAST_ERROR'] = response.reason
-                return ''
+                return ''  # return None
             if response.status_code == 404:
                 COHESITY_API['LAST_ERROR'] = response.reason
                 if quiet is None:
@@ -596,9 +655,13 @@ def dayDiff(newdate, olddate):
 
 
 ### get/store password for future runs
-def __getpassword(vip, username, password, domain, useApiKey, helios, updatepw, prompt):
+def __getpassword(vip, username, password, domain, useApiKey=False, helios=False, updatepw=False, prompt=True, directoryId=False, clientId=False):
     """get/set stored password"""
-    if helios is True or vip.lower() in HELIOSENDPOINTS:
+    if directoryId is True:
+        useApiKey = 'directoryId'
+    elif clientId is True:
+        useApiKey = 'clientId'
+    elif helios is True or vip.lower() in HELIOSENDPOINTS:
         useApiKey = False
     originalUsername = username
     originalVip = vip
@@ -648,7 +711,11 @@ def __getpassword(vip, username, password, domain, useApiKey, helios, updatepw, 
     except Exception:
         if prompt is not False:
             __writelog('prompting for password...')
-            if useApiKey:
+            if directoryId is True:
+                pwd = getpass.getpass("Enter Directory ID for %s at %s: " % (originalUsername, originalVip))
+            elif clientId is True:
+                pwd = getpass.getpass("Enter Client ID for %s at %s: " % (originalUsername, originalVip))
+            elif useApiKey is True:
                 pwd = getpass.getpass("Enter API Key for %s at %s: " % (originalUsername, originalVip))
             else:
                 pwd = getpass.getpass("Enter password for %s at %s: " % (originalUsername, originalVip))
@@ -666,14 +733,24 @@ def __getpassword(vip, username, password, domain, useApiKey, helios, updatepw, 
 
 
 # store password in PWFILE
-def setpwd(v='helios.cohesity.com', u='helios', d='local', useApiKey=False, helios=False, password=None):
+def setpwd(v='helios.cohesity.com', u='helios', d='local', useApiKey=False, helios=False, password=None, entraId=False, directoryId=False, clientId=False):
     originalUsername = u
     originalVip = v
     if d.lower() != 'local' and helios is False and v.lower() not in HELIOSENDPOINTS and useApiKey is False:
         originalUsername = '%s\\%s' % (d, u)
         v = '--'  # wildcard vip
+    if directoryId is True:
+        useApiKey = 'directoryId'
+    elif clientId is True:
+        useApiKey = 'clientId'
+    elif entraId is True:
+        useApiKey = False
     if password is None:
-        if useApiKey is True:
+        if directoryId is True:
+            pwd = getpass.getpass("Enter Directory ID for %s at %s: " % (originalUsername, originalVip))
+        elif clientId is True:
+            pwd = getpass.getpass("Enter Client ID for %s at %s: " % (originalUsername, originalVip))
+        elif useApiKey is True:
             pwd = getpass.getpass("Enter API key for %s at %s: " % (originalUsername, originalVip))
         else:
             pwd = getpass.getpass("Enter password for %s at %s: " % (originalUsername, originalVip))
@@ -893,7 +970,7 @@ if os.path.isdir(CONFIGDIR) is False:
 # 2021.04.04 - added usecsToDateTime and fixed dateToUsecs to support datetime object as input
 # 2021.04.08 - added support for readonly home dir
 # 2021.04.20 - added error return from api function
-# 2021.09.25 - added support for Ccs
+# 2021.09.25 - added support for DMaaS
 # 2021.10.13 - modified setpwd function
 # 2021.11.10 - added setContext and getContext functions
 # 2021.11.15 - added dateToString function, usecsToDate formatting, Helios Reporting v2, Helio On Prem

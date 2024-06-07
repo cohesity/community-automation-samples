@@ -26,6 +26,7 @@
 # 2024.03.07 - minor updates to progress loop
 # 2024.03.08 - refactored status monitor loop, added -q --quickdemo mode
 # 2024.06.03 - fix unintended replication/archival
+# 2024.06.07 - added support for Entra ID (Open ID) authentication
 #
 # extended error codes
 # ====================
@@ -99,6 +100,7 @@ parser.add_argument('-iswt', '--interactivestartwaittime', type=int, default=15)
 parser.add_argument('-irwt', '--interactiveretrywaittime', type=int, default=30)
 parser.add_argument('-int', '--interactive', action='store_true')
 parser.add_argument('-q', '--quickdemo', action='store_true')
+parser.add_argument('-entraId', '--entraId', action='store_true')
 args = parser.parse_args()
 
 vip = args.vip
@@ -149,6 +151,7 @@ interactivestartwaittime = args.interactivestartwaittime
 interactiveretrywaittime = args.interactiveretrywaittime
 interactive = args.interactive
 quickdemo = args.quickdemo
+entraId = args.entraId
 
 cacheSetting = 'true'
 if nocache:
@@ -216,7 +219,7 @@ if 'api_version' not in globals() or api_version < '2022.09.13':
         bail(1)
 
 # authenticate
-apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt), mfaCode=mfacode)
+apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, helios=mcm, prompt=(not noprompt), mfaCode=mfacode, entraId=entraId)
 
 # if connected to helios or mcm, select to access cluster
 if mcm or vip.lower() == 'helios.cohesity.com':
