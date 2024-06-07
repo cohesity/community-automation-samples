@@ -1,5 +1,10 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-06-07
+
+* [backupNow.py](https://github.com/cohesity/community-automation-samples/tree/main/python/backupNow) [`Update`] added support for Entra ID authentication
+* [pyhesity.py](https://github.com/cohesity/community-automation-samples/tree/main/python/pyhesity) [`Update`] added support for Entra ID authentication to Helios
+
 ## 2024-06-06
 
 * [updateVcenterCredentials.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/updateVcenterCredentials) [`New`] update vCenter source credentials
