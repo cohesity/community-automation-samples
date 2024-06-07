@@ -146,6 +146,7 @@ function excludeVolumes($thissvm){
     foreach($volume in $thissvm.nodes){
         foreach($excluderule in $vexstrings){
             if($volume.protectionSource.name -match $excluderule){
+                Write-Host "  excluding volume: $($volume.protectionSource.name)"
                 $volumeId = $volume.protectionSource.id
                 $theseVolumeIds = @($theseVolumeIds + $volumeId)
             }
@@ -156,6 +157,7 @@ function excludeVolumes($thissvm){
 
 if($volumes.Count -eq 0 -and $svmNames.Count -eq 0){
     # select entire source
+    Write-Host "Protecting cluster: $($netapp.protectionSource.name)"
     $objectIds = @($objectIds + $netapp.protectionSource.id)
     # exclude volumes
     if($netapp.protectionSource.netappProtectionSource.type -eq 'kVserver'){
@@ -172,6 +174,7 @@ if($volumes.Count -eq 0 -and $svmNames.Count -eq 0){
             Write-Host "SVM $svmName not found" -ForegroundColor Yellow
             exit 1
         }
+        Write-Host "    Protecting svm: $($svm.protectionSource.name)"
         $objectIds = @($objectIds + $svm.protectionSource.id)
         $excludeObjectIDs = @($excludeObjectIDs + @(excludeVolumes $svm))
     }
@@ -180,6 +183,7 @@ if($volumes.Count -eq 0 -and $svmNames.Count -eq 0){
         if($svmNames.Count -eq 0 -or $svm.protectionSource.name -in $svmNames){
             foreach($volume in $svm.nodes){
                 if($volume.protectionSource.name -in $volumes){
+                    Write-Host " Protecting volume: $($volume.protectionSource.name)"
                     $objectIds = @($objectIds + $volume.protectionSource.id)
                     $foundVolumes = @($foundVolumes + $volume.protectionSource.name)
                 }
@@ -297,10 +301,10 @@ if(!$job){
 
     $job = $job | ConvertTo-Json -Depth 99 | ConvertFrom-Json
 
-    Write-Host "Creating job $jobName"
+    Write-Host "`nCreating job $jobName`n"
 
 }else{
-    Write-Host "Updating job $jobName"
+    Write-Host "`nUpdating job $jobName`n"
 }
 
 # add objects to job
