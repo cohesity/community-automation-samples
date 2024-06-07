@@ -2,6 +2,9 @@
 
 ## 2024-06-07
 
+* [heliosReport.py](https://github.com/cohesity/community-automation-samples/tree/main/reports/helios-reporting/python/heliosReport) [`Update`] added -maxrecords tuning parameter
+* [upgradeCluster.py](https://github.com/cohesity/community-automation-samples/tree/main/python/upgradeCluster) [`Update`] modernized authentication
+* [protectNetapp.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/protectNetapp) [`Update`] added verbose output to screen
 * [backupNow.py](https://github.com/cohesity/community-automation-samples/tree/main/python/backupNow) [`Update`] added support for Entra ID authentication
 * [pyhesity.py](https://github.com/cohesity/community-automation-samples/tree/main/python/pyhesity) [`Update`] added support for Entra ID authentication to Helios
 
