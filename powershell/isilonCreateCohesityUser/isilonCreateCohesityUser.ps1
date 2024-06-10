@@ -22,6 +22,8 @@ isilonAuth -endpoint $isilon -username $username -port $port -password $password
 
 $latest = (isilonAPI get /platform/latest).latest
 
+$config = isilonAPI get /platform/3/cluster/config
+$version = $config.onefs_version.build
 $users = isilonAPI get /platform/1/auth/users
 $existingUser = $users.users | Where-Object name -eq $cohesityUsername
 $roles = isilonAPI get /platform/1/auth/roles
@@ -170,26 +172,50 @@ if($createSMBUser){
         $role = $roles.roles | Where-Object name -eq "BackupAdmin"
         if(! $role){
             Write-Host "Creating BackupAdmin role for zone: $zoneName..."
-            $smbRoleParams = @{
-                "members" = @(
-                    @{
-                        "name" = $cohesityUsername;
-                        "type" = "user"
-                    }
-                );
-                "name" = "BackupAdmin";
-                "privileges" = @(
-                    @{
-                        "id" = "ISI_PRIV_IFS_BACKUP";
-                        "name" = "Backup";
-                        "read_only" = $true
-                    };
-                    @{
-                        "id" = "ISI_PRIV_IFS_RESTORE";
-                        "name" = "Restore";
-                        "read_only" = $true
-                    }
-                )
+            if($version -gt 'B_9_4_2_016(RELEASE)'){
+                $smbRoleParams = @{
+                    "members" = @(
+                        @{
+                            "name" = $cohesityUsername;
+                            "type" = "user"
+                        }
+                    );
+                    "name" = "BackupAdmin";
+                    "privileges" = @(
+                        @{
+                            "id" = "ISI_PRIV_IFS_BACKUP";
+                            "name" = "Backup";
+                            "permission" = 'r'
+                        };
+                        @{
+                            "id" = "ISI_PRIV_IFS_RESTORE";
+                            "name" = "Restore";
+                            "permission" = 'r'
+                        }
+                    )
+                }
+            }else{
+                $smbRoleParams = @{
+                    "members" = @(
+                        @{
+                            "name" = $cohesityUsername;
+                            "type" = "user"
+                        }
+                    );
+                    "name" = "BackupAdmin";
+                    "privileges" = @(
+                        @{
+                            "id" = "ISI_PRIV_IFS_BACKUP";
+                            "name" = "Backup";
+                            "read_only" = $true
+                        };
+                        @{
+                            "id" = "ISI_PRIV_IFS_RESTORE";
+                            "name" = "Restore";
+                            "read_only" = $true
+                        }
+                    )
+                }
             }
             $smbRole = isilonAPI post /platform/$latest/auth/roles?zone=$zoneName $smbRoleParams
         }else{
