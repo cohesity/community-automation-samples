@@ -4,6 +4,8 @@ Warning: this code is provided on a best effort basis and is not in any way offi
 
 This script will obfuscate the file paths (and other path-like strings) in log files. The script will unzip/re-zip and untar/tar gz and tar files.
 
+Note: Minimum python version required - v3.2
+
 ## Download the script
 
 You can download the scripts using the following commands:
@@ -21,12 +23,19 @@ chmod +x obfuscateLogs.py
 * [obfuscateLogs.py](https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/obfuscateLogs/obfuscateLogs.py): the main python script
 * [pyhesity.py](https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity.py): the Cohesity REST API helper module
 
-Place your log files in a folder (the script will process all files in that folder), then run the main script like so:
+Place your log files in a folder (the script will process all files in that folder), then run the main script like so if you want to run it sequentially:
 
 ```bash
 ./obfuscateLogs.py -l ~/mylogs/
 ```
 
+To run parallelly:
+```bash
+./obfuscateLogs.py -l ~/mylogs/ -p
+```
+
 ## Parameters
 
-* -l, --logpath: path of folder containing logs
+* -l, --logpath: path of folder containing logs (Required)
+* -p, --parallel: Launch parallel tasks for concurrent file processing (Optional)
+* -w, --workers: No. of concurrent processes to run if parallel processinf is selected. If it is not provided with '-p' argument then it will default to the number of processors on the machine.  (Optional)
