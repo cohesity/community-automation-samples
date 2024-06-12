@@ -1,5 +1,9 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-06-12
+
+* [updateAWSExternalTargetCredentials.py](https://github.com/cohesity/community-automation-samples/tree/main/python/updateAWSExternalTargetCredentials) [`New`] Update AWS external target access key and secret key
+
 ## 2024-06-07
 
 * [heliosReport.py](https://github.com/cohesity/community-automation-samples/tree/main/reports/helios-reporting/python/heliosReport) [`Update`] added -maxrecords tuning parameter
