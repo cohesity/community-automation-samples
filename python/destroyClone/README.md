@@ -13,7 +13,7 @@ You can download the scripts using the following commands:
 
 ```bash
 # download commands
-curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/oracle/python/destroyClone/destroyClone.py
+curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/destroyClone/destroyClone.py
 curl -O https://raw.githubusercontent.com/cohesity/community-automation-samples/main/python/pyhesity.py
 chmod +x destroyClone.py
 # end download commands
