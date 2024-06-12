@@ -567,7 +567,7 @@ if wait is True or progress is True:
     taskId = response['id'].split(':')[2]
     status = api('get', '/restoretasks/%s' % taskId)
     finishedStates = ['kSuccess', 'kFailed', 'kCanceled', 'kFailure']
-    while status[0]['restoreTask']['performRestoreTaskState']['base']['publicStatus'] not in finishedStates:
+    while status is None or len(status) == 0 or 'restoreTask' not in status[0] or status[0]['restoreTask']['performRestoreTaskState']['base']['publicStatus'] not in finishedStates:
         sleep(15)
         status = api('get', '/restoretasks/%s' % taskId)
         if progress:
