@@ -45,6 +45,7 @@ Place both files in a folder together and run the main script like so:
 * -sd, --sourcedb: name of source oracle DB
 * -ts, --targetserver: name of target oracle server (default is sourceserver)
 * -n, --viewname: name of target view (default's to sourcedb name)
+* -cc, --channelcount: (optional) specifies the number of channels to be created
 * -lt, --logtime: point in time to replay the logs to
 * -l, --latest: replay logs to latest available point in time
 * -w, --wait: wait for completion
