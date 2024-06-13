@@ -494,9 +494,9 @@ foreach($sourceDbName in $sourceDbNames | Sort-Object){
                 $targetConfig['restoreTimeUsecs'] = $selectedPIT
             }
         }
-        if($overWrite){
-            $targetConfig['overwritingPolicy'] = 'Overwrite'
-        }
+        # if($overWrite){
+        #     $targetConfig['overwritingPolicy'] = 'Overwrite'
+        # }
     }else{
         if($renameDB -eq $false){
             if(! $overWrite -and ! $showPaths){
@@ -574,6 +574,11 @@ foreach($sourceDbName in $sourceDbNames | Sort-Object){
             }
             $targetConfig['secondaryDataFilesDirList'] = @($ndfParams)
         }
+    }
+
+    # overwrite
+    if($overWrite){
+        $targetConfig['overwritingPolicy'] = 'Overwrite'
     }
 
     # no recovery
