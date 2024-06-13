@@ -1,5 +1,10 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-06-13
+
+* [migrateIsilonProtectionGroup.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/migrateIsilonProtectionGroup) [`New`] Migrate Isilon protection group to another cluster
+* [migrateNetappProtectionGroup.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/migrateNetappProtectionGroup) [`New`] Migrate Netapp protection group to another cluster
+
 ## 2024-06-12
 
 * [updateAWSExternalTargetCredentials.py](https://github.com/cohesity/community-automation-samples/tree/main/python/updateAWSExternalTargetCredentials) [`New`] Update AWS external target access key and secret key
