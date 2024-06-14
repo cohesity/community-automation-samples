@@ -1,5 +1,9 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-06-14
+
+* [mountOracleAsView.py](https://github.com/cohesity/community-automation-samples/tree/main/oracle/python/mountOracleAsView) [`Update`] added -cc, --channelcount parameter
+
 ## 2024-06-13
 
 * [migrateIsilonProtectionGroup.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/migrateIsilonProtectionGroup) [`New`] Migrate Isilon protection group to another cluster
