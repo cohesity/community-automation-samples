@@ -20,6 +20,7 @@ parser.add_argument('-ss', '--sourceserver', type=str, required=True)  # name of
 parser.add_argument('-sd', '--sourcedb', type=str, required=True)  # name of source oracle DB
 parser.add_argument('-ts', '--targetserver', type=str, default=None)  # name of target oracle server
 parser.add_argument('-n', '--viewname', type=str, default=None)  # name of target oracle server
+parser.add_argument('-cc', '--channelcount', type=int, default=None)  # specifies the number of channels to be created
 parser.add_argument('-lt', '--logtime', type=str, default=None)  # pit to recover to
 parser.add_argument('-l', '--latest', action='store_true')  # recover to latest available pit
 parser.add_argument('-w', '--wait', action='store_true')  # wait for completion
@@ -46,6 +47,7 @@ if args.viewname is None:
 else:
     viewname = args.viewname
 
+channelcount = args.channelcount
 logtime = args.logtime
 latest = args.latest
 wait = args.wait
@@ -182,6 +184,23 @@ restoreParams = {
         }
     }
 }
+
+if channelcount:
+    dbChannels = [
+        {
+            "databaseUniqueName": sourcedb,
+            "databaseUuid": objects[0]['uuid'],
+            "databaseNodeList": [
+                {
+                    "hostAddress": targetEntity['appEntity']['entity']['physicalEntity']['name'],
+                    "hostId": "%s" % targetEntity['appEntity']['entity']['physicalEntity']['agentStatusVec'][0]['id'],
+                    "fqdn": targetEntity['appEntity']['entity']['physicalEntity']['hostname'],
+                    "channelCount": channelcount
+                }
+            ]
+        }
+    ]
+    restoreParams['oracleParams']['recoverAppParams']['oracleTargetParams']['newSourceConfig']['recoverViewParams']['dbChannels'] = dbChannels
 
 # specify point in time
 if pit is not None:

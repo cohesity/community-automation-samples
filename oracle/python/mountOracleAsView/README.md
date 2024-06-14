@@ -32,22 +32,26 @@ Place both files in a folder together and run the main script like so:
                        -l -w
 ```
 
-## Parameters
+## Authentication Parameters
 
-* -v, --vip: name of Cohesity cluster to connect to (default is helios.cohesity.com)
-* -u, --username: short username to authenticate to the cluster (default is helios)
+* -v, --vip: (optional) name of Cohesity cluster to connect to (default is helios.cohesity.com)
+* -u, --username: (optional) short username to authenticate to the cluster (default is helios)
 * -d, --domain: (optional) active directory domain of user (default is local)
 * -i, --useApiKey: (optional) use API key for authentication
 * -pwd, --password: (optional) password of API key
 * -mcm, --mcm: (optional) connect through MCM
 * -c, --clustername: (optional) helios/mcm cluster to connect to
+
+## Other Parameters
+
 * -ss, --sourceserver: name of source oracle server
 * -sd, --sourcedb: name of source oracle DB
-* -ts, --targetserver: name of target oracle server (default is sourceserver)
-* -n, --viewname: name of target view (default's to sourcedb name)
-* -lt, --logtime: point in time to replay the logs to
-* -l, --latest: replay logs to latest available point in time
-* -w, --wait: wait for completion
+* -ts, --targetserver: (optional) name of target oracle server (default is sourceserver)
+* -n, --viewname: (optional) name of target view (default's to sourcedb name)
+* -lt, --logtime: (optional) point in time to replay the logs to
+* -l, --latest: (optional) replay logs to latest available point in time
+* -cc, --channelcount: (optional) number of mounts to create on target server
+* -w, --wait: (optional) wait for completion
 
 ## Point in Time Recovery
 
