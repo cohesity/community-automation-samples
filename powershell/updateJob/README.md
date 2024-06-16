@@ -90,6 +90,6 @@ Changing several properties at once:
 * -timeZone: (optional) e.g. 'America/New_York'
 * -incrementalProtectionSlaTimeMins: (optional) number of minutes before marking incremental SLA as missed
 * -fullProtectionSlaTimeMins: (optional) number of minutes before marking full SLA as missed
-* -alertOn: (otional) one or more of the following: None, kSuccess, kSlaViolation, kFailure' (comma separated)
+* -alertOn: (otional) one or more of the following: None, kSuccess, kSlaViolation, kFailure (comma separated)
 * -addRecipient: (optional) one or more email addresses to add to alert recipients (comma separated)
 * -removeRecipient: (optional) one or more email addresses to remove from alert recipients (comma separated)
