@@ -1,5 +1,9 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-06-16
+
+* [updateJob.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/updateJob) [`Update`] added controls for job alerts
+
 ## 2024-06-14
 
 * [mountOracleAsView.py](https://github.com/cohesity/community-automation-samples/tree/main/oracle/python/mountOracleAsView) [`Update`] added -cc, --channelcount parameter
