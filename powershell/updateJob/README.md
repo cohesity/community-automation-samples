@@ -74,12 +74,13 @@ Changing several properties at once:
 * -domain: (optional) your AD domain (defaults to local)
 * -useApiKey: (optional) use API key for authentication
 * -password: (optional) will use cached password or will be prompted
+* -noPrompt: (optional) do not prompt for password
+* -tenant: (optional) organization to impersonate
 * -mcm: (optional) connect through MCM
 * -mfaCode: (optional) TOTP MFA code
-* -emailMfaCode: (optional) send MFA code via email
 * -clusterName: (optional) cluster to connect to when connecting through Helios or MCM
 
-## Job Parameters
+## Other Parameters
 
 * -jobName: (optional) one or more job names to modify (comma separated)
 * -jobList: (optional) text file of job names to modify (one per line)
@@ -89,3 +90,6 @@ Changing several properties at once:
 * -timeZone: (optional) e.g. 'America/New_York'
 * -incrementalProtectionSlaTimeMins: (optional) number of minutes before marking incremental SLA as missed
 * -fullProtectionSlaTimeMins: (optional) number of minutes before marking full SLA as missed
+* -alertOn: (otional) one or more of the following: None, kSuccess, kSlaViolation, kFailure' (comma separated)
+* -addRecipient: (optional) one or more email addresses to add to alert recipients (comma separated)
+* -removeRecipient: (optional) one or more email addresses to remove from alert recipients (comma separated)

@@ -1,15 +1,17 @@
 ### process commandline arguments
 [CmdletBinding()]
 param (
-    [Parameter()][string]$vip = 'helios.cohesity.com',
+    [Parameter()][string]$vip='helios.cohesity.com',
     [Parameter()][string]$username = 'helios',
-    [Parameter()][string]$domain = 'local',  # local or AD domain
+    [Parameter()][string]$domain = 'local',
+    [Parameter()][string]$tenant,
     [Parameter()][switch]$useApiKey,
-    [Parameter()][string]$password = $null,
+    [Parameter()][string]$password,
+    [Parameter()][switch]$noPrompt,
     [Parameter()][switch]$mcm,
-    [Parameter()][string]$mfaCode = $null,
+    [Parameter()][string]$mfaCode,
     [Parameter()][switch]$emailMfaCode,
-    [Parameter()][string]$clusterName = $null,
+    [Parameter()][string]$clusterName,
     [Parameter()][string]$policyName,
     [Parameter()][array]$jobName,
     [Parameter()][string]$jobList,
@@ -17,29 +19,39 @@ param (
     [Parameter()][string]$startTime, # e.g. 23:30 for 11:30 PM
     [Parameter()][string]$timeZone, # e.g. 'America/New_York'
     [Parameter()][int]$incrementalProtectionSlaTimeMins,
-    [Parameter()][int]$fullProtectionSlaTimeMins
+    [Parameter()][int]$fullProtectionSlaTimeMins,
+    [Parameter()][ValidateSet('None','kSuccess','kSlaViolation','kFailure')][array]$alertOn,
+    [Parameter()][array]$addRecipient,
+    [Parameter()][array]$removeRecipient
 )
 
 # source the cohesity-api helper code
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
 
+# authentication =============================================
+# demand clusterName for Helios/MCM
+if(($vip -eq 'helios.cohesity.com' -or $mcm) -and ! $clusterName){
+    Write-Host "-clusterName required when connecting to Helios/MCM" -ForegroundColor Yellow
+    exit 1
+}
+
 # authenticate
-apiauth -vip $vip -username $username -domain $domain -apiKeyAuthentication $useApiKey -mfaCode $mfaCode -sendMfaCode $emailMfaCode -heliosAuthentication $mcm -regionid $region
+apiauth -vip $vip -username $username -domain $domain -passwd $password -apiKeyAuthentication $useApiKey -mfaCode $mfaCode -sendMfaCode $emailMfaCode -heliosAuthentication $mcm -regionid $region -tenant $tenant -noPromptForPassword $noPrompt
+
+# exit on failed authentication
+if(!$cohesity_api.authorized){
+    Write-Host "Not authenticated" -ForegroundColor Yellow
+    exit 1
+}
 
 # select helios/mcm managed cluster
 if($USING_HELIOS){
-    if($clusterName){
-        $thisCluster = heliosCluster $clusterName
-    }else{
-        write-host "Please provide -clusterName when connecting through helios" -ForegroundColor Yellow
+    $thisCluster = heliosCluster $clusterName
+    if(! $thisCluster){
         exit 1
     }
 }
-
-if(!$cohesity_api.authorized){
-    Write-Host "Not authenticated"
-    exit
-}
+# end authentication =========================================
 
 # find job params path
 function findObjectParam($o){
@@ -186,7 +198,52 @@ foreach($job in $jobs.protectionGroups | Sort-Object -Property name){
             $updateJob = $True
             $fullSLA = $job.sla | Where-Object backupRunType -eq 'kFull'
             $fullSLA.slaMinutes = [int]$fullProtectionSlaTimeMins
-        }        
+        }
+        # update alerts
+        if($alertOn){
+            $updateJob = $True
+            if("None" -in $alertOn){
+                if($job.PSObject.Properties['alertPolicy']){
+                    delApiProperty -object $job -name 'alertPolicy'
+                }
+            }else{
+                if(!$job.PSObject.Properties['alertPolicy']){
+                    setApiProperty -object $job -name 'alertPolicy' -value @{
+                        "backupRunStatus" = @($alertOn);
+                        "alertTargets" = @()
+                    }
+                }else{
+                    $job.alertPolicy.backupRunStatus = @($alertOn)
+                }
+            }
+        }
+        # add alert recipients
+        if($addRecipient.Count -gt 0){
+            if($job.PSObject.Properties['alertPolicy']){
+                foreach($address in $addRecipient){
+                    $address = [string]$address
+                    if(!($address -in $job.alertPolicy.alertTargets.emailAddress)){
+                        $job.alertPolicy.alertTargets = @($job.alertPolicy.alertTargets + @{
+                            "emailAddress"  = $address;
+                            "locale"        = "en-us";
+                            "recipientType" = "kTo"
+                        })
+                        $updateJob = $True
+                    }
+                }
+            }
+        }
+        # remove alert recipients
+        if($removeRecipient.Count -gt 0){
+            if($job.PSObject.Properties['alertPolicy']){
+                foreach($address in $removeRecipient){
+                    if($address -in $job.alertPolicy.alertTargets.emailAddress){
+                        $job.alertPolicy.alertTargets = @($job.alertPolicy.alertTargets | Where-Object {$_.emailAddress -ne $address})
+                        $updateJob = $True
+                    }
+                }
+            }
+        }
     }
     if($True -eq $updateJob){
         $null = api put -v2 data-protect/protection-groups/$($job.id) $job
