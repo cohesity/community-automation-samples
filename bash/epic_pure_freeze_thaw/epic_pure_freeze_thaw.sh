@@ -2,7 +2,7 @@
 
 ##########################################################################################
 ##
-## Last updated: 2023.12.07 - Brian Seltzer @ Cohesity
+## Last updated: 2023.06.20 - Brian Seltzer @ Cohesity
 ##
 ## - change first line to #!/bin/ksh (AIX) or #!/bin/bash (Linux)
 ## - edit /etc/ssh/sshd_cohfig: MaxStartups 50:30:150 (first number must be 24 or higher) 
@@ -20,6 +20,7 @@
 ## - 2023-11-03 - moved make source LUN locks to after snapshot creation
 ## - 2023-12-07 - added -s to create a PPG snapshot (for safemode support)
 ## - 2024-02-14 - added version info to output
+## - 2024-06-20 - added epic instance to source lun file name
 ##
 ##########################################################################################
 
@@ -93,8 +94,8 @@ if [[ ! -e /tmp/cohesity_snap.log ]]; then
     touch /tmp/cohesity_snap.log
 fi
 
-if [[ ! -e /tmp/cohesity_SRCLUNS.txt ]]; then
-    touch /tmp/cohesity_SRCLUNS.txt
+if [[ ! -e /tmp/cohesity_SRCLUNS-$EPIC_INSTANCE.txt ]]; then
+    touch /tmp/cohesity_SRCLUNS-$EPIC_INSTANCE.txt
 fi
 
 ###################################
@@ -177,14 +178,14 @@ echo "$(date) : $COHESITY_BACKUP_ENTITY : Cohesity Pre-Script starting with PID 
 echo "$(date) Created Lock /tmp/$COHESITY_BACKUP_VOLUME_SNAPSHOT_SUFFIX" 
 
 #### Get list of volumes in pure protection group
-echo "Generating Source LUN File /tmp/cohesity_SRCLUNS.txt"
-if [[ -e /tmp/cohesity_SRCLUNS.txt ]]; then
-    rm -f /tmp/cohesity_SRCLUNS.txt
+echo "Generating Source LUN File /tmp/cohesity_SRCLUNS-$EPIC_INSTANCE.txt"
+if [[ -e /tmp/cohesity_SRCLUNS-$EPIC_INSTANCE.txt ]]; then
+    rm -f /tmp/cohesity_SRCLUNS-$EPIC_INSTANCE.txt
 fi
 PURE_SRC_PGROUPS=$(echo $PURE_SRC_PGROUP | sed 's/,/ /g')
 for pg in $PURE_SRC_PGROUPS
 do
-    /usr/bin/ssh -i ${PRIVKEY_PATH} ${PURE_USER}@${PURE_ARRAY} "purepgroup listobj --type vol ${PURE_SRC_PGROUP}"  >> /tmp/cohesity_SRCLUNS.txt
+    /usr/bin/ssh -i ${PRIVKEY_PATH} ${PURE_USER}@${PURE_ARRAY} "purepgroup listobj --type vol ${PURE_SRC_PGROUP}"  >> /tmp/cohesity_SRCLUNS-$EPIC_INSTANCE.txt
     if [[ $? -ne 0 ]]; then
         echo "Obtaining Pure Source LUNs Failed"
         echo "$(date) : $COHESITY_BACKUP_ENTITY : Obtaining Pure Source LUNs Failed ****" >> /tmp/cohesity_snap.log
@@ -196,7 +197,7 @@ do
     fi
 done
 
-PURE_SRC_LUNS=$(sed -e :a -e '$!N; s/\n/ /; ta' /tmp/cohesity_SRCLUNS.txt)
+PURE_SRC_LUNS=$(sed -e :a -e '$!N; s/\n/ /; ta' /tmp/cohesity_SRCLUNS-$EPIC_INSTANCE.txt)
 echo "PURE_SOURCE_LUNS: $PURE_SRC_LUNS"
 
 if [[ ! -e /tmp/$COHESITY_JOB_ID ]]; then
