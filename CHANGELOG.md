@@ -2,6 +2,7 @@
 
 ## 2024-06-24
 
+* [cohesity-api.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/cohesity-api) [`Fix`] fixed SaaS connector authentication error: KInvalidError
 * [updateSaaSconnectorPassword.ps1](https://github.com/cohesity/community-automation-samples/tree/main/ccs/powershell/updateSaaSconnectorPassword) [`New`] update admin password on SaaS connector
 * [protectLinux.py](https://github.com/cohesity/community-automation-samples/tree/main/python/protectLinux) [`Update`] added -al, --alerton and -ar --recipients parameters
 * [protectUDA.py](https://github.com/cohesity/community-automation-samples/tree/main/python/protectUDA) [`Update`] added -al, --alerton and -ar --recipients parameters
