@@ -1,6 +1,6 @@
 # . . . . . . . . . . . . . . . . . . .
 #  PowerShell Module for Cohesity API
-#  Version 2024.05.17 - Brian Seltzer
+#  Version 2024.06.24 - Brian Seltzer
 # . . . . . . . . . . . . . . . . . . .
 #
 # 2023.02.10 - added -region to api function (for DMaaS)
@@ -36,10 +36,11 @@
 # 2024-02-29 - added dateToString function
 # 2024-05-02 - added quiet switch to fileDownload function
 # 2024-05-17 - added support for EntraID (Open ID) authentication
+# 2024-06-24 - fixed authentication error for SaaS connectors
 #
 # . . . . . . . . . . . . . . . . . . .
 
-$versionCohesityAPI = '2024.05.17'
+$versionCohesityAPI = '2024.06.24'
 $heliosEndpoints = @('helios.cohesity.com', 'helios.gov-cohesity.com')
 
 # state cache
@@ -265,7 +266,7 @@ function apiauth($vip='helios.cohesity.com',
         # Write-Host "passwd: $passwd"
         # Write-Host "username: $username"
         if($clientId -and $directoryId -and $scope){
-            $token = entraAuth -username $username -password $passwd -client_id $clientId -tenant_id $directoryId -scope $scope
+            $token = ProcessOidcToken -username $username -password $passwd -client_id $clientId -tenant_id $directoryId -scope $scope
             # Write-Host $token
             if($token){
                 $header['X-OPEN-ID-AUTHZ-TOKEN'] = $token
@@ -502,7 +503,7 @@ function apiauth($vip='helios.cohesity.com',
             if(!$quiet){ Write-Host "Connected!" -foregroundcolor green }
         }catch{
             $thisError = $_
-            if($thisError -match 'User does not have the privilege to access UI'){
+            if($thisError -match 'User does not have the privilege to access UI' -or $thisError -match "KInvalidError"){
                 $url = $cohesity_api.apiRoot + '/public/accessTokens'
                 try {
                     if($emailMfaCode){
@@ -1220,36 +1221,7 @@ function importStoredPassword($vip='helios.cohesity.com', $username='helios', $d
     }
 }
 
-function entraAuth ([string]$username, [string]$password, [string]$client_id, [string]$tenant_id, [string]$scope = 'openid profile'){
-    $callazure=$null
-    $Azbody = @{
-        'grant_type'    = 'password';
-        'client_id'     = $client_id;
-        'scope'         = $scope;
-        'username'      = $username;
-        'password'      = $password;
-    }
-    $AzureURL="https://login.microsoftonline.com/$($tenant_id)/oauth2/v2.0/token"
-    $azuhdr = @{
-        'content-type' = "application/x-www-form-urlencoded;charset=utf-8";
-        'Accept'= "application/json"
-    }
-    try{
-        $callazure = Invoke-RestMethod -Method POST -Uri $AzureURL -Body $Azbody -Headers $azuhdr -TimeoutSec 300 -ErrorAction SilentlyContinue
-        $OidcToken=$callazure.id_token
-        return $OidcToken
-    }catch{
-        $error = $_ | ConvertFrom-Json
-        if($error.PSObject.Properties['error_description']){
-            Write-Host "$($error.error_description)" -foregroundcolor red
-        }else{
-            Write-Host "Error occurred autheitcating to Entra ID" -foregroundcolor red
-        }
-        apidrop
-    }
-}
-
-function deprecated-entraAuth ([string]$username, [string]$password, [string]$client_id, [string]$tenant_id, [string]$scope = 'openid profile'){
+function ProcessOidcToken ([string]$username, [string]$password, [string]$client_id, [string]$tenant_id, [string]$scope = 'openid profile'){
     $tokenreturn=$null
     $tokenreturn=Invoke-RestConOIDCAzure -username ($username) -pwdx ($password) -cidx ($client_id) -tidx ($tenant_id) -scope ($scope)    
     If($tokenreturn.Exception) {
@@ -1259,7 +1231,7 @@ function deprecated-entraAuth ([string]$username, [string]$password, [string]$cl
     }
 }
 
-function deprecated-Invoke-RestConOIDCAzure  {
+function Invoke-RestConOIDCAzure  {
     param ( [Parameter (Mandatory = $true)] [ValidateNotNullOrEmpty()] [String]$username,
             [Parameter (Mandatory = $true)] [ValidateNotNullOrEmpty()] $pwdx,
             [Parameter (Mandatory = $true)] [ValidateNotNullOrEmpty()] [String]$cidx,
