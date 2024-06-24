@@ -13,7 +13,8 @@ param (
     [Parameter()][switch]$emailMfaCode,
     [Parameter()][array]$clusterName,
     [Parameter()][array]$jobName,
-    [Parameter()][string]$jobList
+    [Parameter()][string]$jobList,
+    [Parameter()][switch]$transportErrorsOnly
 )
 
 # gather list from command line params and file
@@ -97,7 +98,6 @@ foreach($v in $vip){
                 $null = heliosCluster $cluster
             }
             # main
-            # $cluster = api get cluster
             $jobNames = @(gatherList -Param $jobName -FilePath $jobList -Name 'jobs' -Required $false)
             $jobs = api get protectionJobs | Where-object {$_.isActive -ne $false -and $_.isDeleted -ne $True}
 
@@ -130,31 +130,32 @@ foreach($v in $vip){
                                 $needsRun = $True
                                 if($needsRun){
                                     "        ({0}): {1}" -f $runStartTime, $message
-                                    # "{0} ({1}): {2}" -f $job.name, $runStartTime, $message | Out-File -FilePath $outfileName -Append    
                                 }
                                 foreach($source in $run.backupRun.sourceBackupStatus){
                                     if($source.status -eq 'kFailure'){
-                                        $sourceId = $source.source.id
-                                        $refreshSourceIds = @($refreshSourceIds + $sourceId)
-                                        $runNowParameter = @{
-                                            "sourceId" = $sourceId;
-                                        }
-                                        $sourceName = $source.source.name
-                                        foreach($app in $source.appsBackupStatus){
-                                            if($app.PSObject.Properties['error']){
-                                                if(! $runNowParameter.databaseIds){
-                                                    $runNowParameter.databaseIds = @()
-                                                }
-                                                $runNowParameter.databaseIds = @($runNowParameter.databaseIds + $app.appId)
+                                        $sourceError = $source.error
+                                        if($sourceError -match 'transport' -or ! $transportErrorsOnly){
+                                            $sourceId = $source.source.id
+                                            $refreshSourceIds = @($refreshSourceIds + $sourceId)
+                                            $runNowParameter = @{
+                                                "sourceId" = $sourceId;
                                             }
+                                            $sourceName = $source.source.name
+                                            foreach($app in $source.appsBackupStatus){
+                                                if($app.PSObject.Properties['error']){
+                                                    if(! $runNowParameter.databaseIds){
+                                                        $runNowParameter.databaseIds = @()
+                                                    }
+                                                    $runNowParameter.databaseIds = @($runNowParameter.databaseIds + $app.appId)
+                                                }
+                                            }
+                                            $runNowParameters = @($runNowParameters + $runNowParameter)
                                         }
-                                        $runNowParameters = @($runNowParameters + $runNowParameter)
                                     }
                                 }
                             }
                         }
                     }
-
                     # run incremental if needed
                     if($needsRun){
                         "        Refreshing sources..."
@@ -191,7 +192,7 @@ foreach($v in $vip){
                             }
                         }
                         $runParams = @{
-                            "runType" = 'kRegular';
+                            "runType" = $runType;
                             "usePolicyDefaults" = $True;
                             "copyRunTargets" = @($copyRunTargets);
                             "runNowParameters" = $runNowParameters;

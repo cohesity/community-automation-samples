@@ -59,15 +59,24 @@ To run the script against select helios clusters:
 # end example
 ```
 
-## Parameters
+## Authentication Parameters
 
-* -vip: name or IP of Cohesity cluster
-* -username: name of user to connect to Cohesity
-* -domain: your AD domain (defaults to local)
-* -password: (optional) uses stored password by default
-* -useApiKey: (optional) use API key authentication
+* -vip: (optional) one or more names or IPs of Cohesity clusters (defaults to helios.cohesity.com)
+* -username: (optional) name of user to connect to Cohesity (defaults to helios)
+* -domain: (optional) your AD domain (defaults to local)
+* -useApiKey: (optional) use API key for authentication
+* -password: (optional) will use cached password or will be prompted
+* -noPrompt: (optional) do not prompt for password
+* -tenant: (optional) organization to impersonate
+* -mcm: (optional) connect through MCM
+* -mfaCode: (optional) TOTP MFA code
+* -clusterName: (optional) one or more clusters to connect to when connecting through Helios or MCM
+
+## Other Parameters
+
 * -jobName: (optional) names of protection jobs to include (comma separated)
 * -jobList: (optional) text file of job names to include (one per line)
+* -transportErrorsOnly: (optional) restart backup only for sources that failed with a transport error
 
 ## Note
 
