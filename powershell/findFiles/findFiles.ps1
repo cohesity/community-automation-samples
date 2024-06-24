@@ -55,15 +55,15 @@ function getObjectId($objectName){
     return $global:_object_id
 }
 
-function getResults($thisQuery){
+function getResults($thisQuery, $thisString=$null){
     $results = api get "restore/files?paginate=true&pageSize=$($pageSize)$($thisQuery)"
 
     $oldcookie = $null
     while($True){
         if($results.files.count -gt 0){
             $output = $results.files | where-object { $_.isFolder -ne $True } | Sort-Object -Property {$_.protectionSource.name}, {$_.filename}
-            if($extensionOnly -and $searchString){
-                $output = $output | Where-Object {$_.fileName -match $searchString+'$'}
+            if($extensionOnly -and $thisString){
+                $output = $output | Where-Object {$_.fileName -match $thisString+'$'}
             }
             foreach($result in $output){
                 if($result.type -ne 'kDirectory' -and $result.type -ne 'kSymLink'){
@@ -97,7 +97,7 @@ function getResults($thisQuery){
                         } 
                         write-host ("{0},{1},{2},{3}" -f $parentName, $objectName, $fileName, $mtime)
                         "{0}`t{1}`t{2}`t{3}`t{4}" -f $jobName, $parentName, $objectName, $fileName, $mtime | Out-File -FilePath foundFiles.tsv -Append
-                        $fileCount += 1
+                        $script:fileCount += 1
                     }
                 }           
             }
@@ -152,7 +152,7 @@ if($searchString.Count -eq 0){
 }else{
     foreach($thisSearchString in $searchString){
         $thisQuery = $query + "&search=$($thisSearchString)"
-        getResults $thisQuery
+        getResults $thisQuery $thisSearchString
     }
 }
 
