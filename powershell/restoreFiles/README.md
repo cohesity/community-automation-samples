@@ -73,6 +73,7 @@ Restore finished with status Success
 * -overwrite: (optional) overwrite existing files
 * -rangeRestore: (optional) restore all versions (of folder) newset to oldest
 * -showVersions: (optional) show available versions
+* -noIndex: (optional) do not use search index to find files
 * -restoreFromArchive: (optional) force restore from archive
 * -isilonZoneId: (optional) Isilon zone name of target object
 * -taskName: (optional) restore task name
