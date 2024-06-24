@@ -64,3 +64,5 @@ Place both files in a folder together and run the main script like so:
 * -fs, --fullsla: (optional) full SLA minutes (default is 120)
 * -z, --pause: (optional) pause future runs of new job
 * -q, --qospolicy: (optional) kBackupHDD or kBackupSSD (default is kBackupHDD)
+* -al, --alerton: (optional) None, kFailure, kSuccess or kSlaViolation (repeat for multiple)
+* -ar, --recipient: (optional) email address to send alerts to (repeat for multiple)

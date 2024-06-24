@@ -27,6 +27,8 @@ parser.add_argument('-is', '--incrementalsla', type=int, default=60)    # increm
 parser.add_argument('-fs', '--fullsla', type=int, default=120)          # full SLA minutes
 parser.add_argument('-q', '--qospolicy', type=str, choices=['kBackupHDD', 'kBackupSSD'], default='kBackupHDD')
 parser.add_argument('-z', '--pause', action='store_true')
+parser.add_argument('-al', '--alerton', action='append', type=str, default=[])
+parser.add_argument('-ar', '--recipient', action='append', type=str, default=[])
 args = parser.parse_args()
 
 vip = args.vip
@@ -52,6 +54,18 @@ incrementalsla = args.incrementalsla
 fullsla = args.fullsla
 qospolicy = args.qospolicy
 pause = args.pause
+alerton = args.alerton
+recipients = args.recipient
+
+# validate alert policy
+if len(alerton) == 0:
+    alerton = ['kFailure']
+for alert in alerton:
+    if alert not in ['None', 'none', 'kFailure', 'kSuccess', 'kSlaViolation']:
+        print('--alerton must be None, kFailure, kSuccess, kSlaViolation')
+        exit(1)
+    if alert in ['None', 'none']:
+        alerton = []
 
 # authenticate
 if mcm:
@@ -154,12 +168,6 @@ jobParams = {
     "environment": "kUDA",
     "isPaused": isPaused,
     "description": "",
-    "alertPolicy": {
-        "backupRunStatus": [
-            "kFailure"
-        ],
-        "alertTargets": []
-    },
     "udaParams": {
         "sourceId": sourceId,
         "objects": [],
@@ -170,6 +178,19 @@ jobParams = {
         "logBackupArgs": logbackupargs
     }
 }
+
+# add alert policy
+if len(alerton) > 0:
+    jobParams['alertPolicy'] = {
+        "backupRunStatus": alerton,
+        "alertTargets": []
+    }
+    for recipient in recipients:
+        jobParams['alertPolicy']['alertTargets'].append({
+            "emailAddress": recipient,
+            "locale": "en-us",
+            "recipientType": "kTo"
+        })
 
 for object in objectnames:
     jobParams['udaParams']['objects'].append({"name": object})
