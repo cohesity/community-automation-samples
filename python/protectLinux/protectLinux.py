@@ -43,6 +43,8 @@ parser.add_argument('-prefail', '--prescriptfail', action='store_true')
 parser.add_argument('-post', '--postscript', type=str, default=None)
 parser.add_argument('-postargs', '--postscriptargs', type=str, default=None)
 parser.add_argument('-posttimeout', '--postscripttimeout', type=int, default=900)
+parser.add_argument('-al', '--alerton', action='append', type=str, default=[])
+parser.add_argument('-ar', '--recipient', action='append', type=str, default=[])
 
 args = parser.parse_args()
 
@@ -82,6 +84,18 @@ prescriptfail = args.prescriptfail        # fail job if prescritp fails
 postscript = args.postscript              # postscript
 postscriptargs = args.postscriptargs      # post script args
 postscripttimeout = args.postscripttimeout  # post script timeout
+alerton = args.alerton
+recipients = args.recipient
+
+# validate alert policy
+if len(alerton) == 0:
+    alerton = ['kFailure']
+for alert in alerton:
+    if alert not in ['None', 'none', 'kFailure', 'kSuccess', 'kSlaViolation']:
+        print('--alerton must be None, kFailure, kSuccess, kSlaViolation')
+        exit(1)
+    if alert in ['None', 'none']:
+        alerton = []
 
 if prescriptfail is True:
     continueonerror = False
@@ -177,12 +191,6 @@ if not job or len(job) < 1:
             "minute": int(minute),
             "timeZone": timezone
         },
-        "alertPolicy": {
-            "backupRunStatus": [
-                "kFailure"
-            ],
-            "alertTargets": []
-        },
         "sla": [
             {
                 "backupRunType": "kIncremental",
@@ -234,6 +242,18 @@ if not job or len(job) < 1:
             }
         }
     }
+    # add alert policy
+    if len(alerton) > 0:
+        job['alertPolicy'] = {
+            "backupRunStatus": alerton,
+            "alertTargets": []
+        }
+        for recipient in recipients:
+            job['alertPolicy']['alertTargets'].append({
+                "emailAddress": recipient,
+                "locale": "en-us",
+                "recipientType": "kTo"
+            })
     if paused is True:
         job['isPaused'] = True
     if prescript is not None or postscript is not None:

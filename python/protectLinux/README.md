@@ -84,6 +84,8 @@ Place both files in a folder together and run the main script like so:
 * -post, --postscript: (optional) name of post script
 * -postargs, --postscriptargs: (optional) arguments for post script
 * -posttimeout, --postscripttimeout: (optional) timeout for post script (default is 900 seconds)
+* -al, --alerton: (optional) None, kFailure, kSuccess or kSlaViolation (repeat for multiple)
+* -ar, --recipient: (optional) email address to send alerts to (repeat for multiple)
 
 ## Notes
 
