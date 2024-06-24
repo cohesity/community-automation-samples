@@ -68,6 +68,7 @@ Restore finished with status kSuccess
 * -e, --end: (optional) newest backup date to restore files from (e.g. '2020-04-20 18:00:00')
 * -l, --latest: (optional) use latest backup date to restore files from
 * -o, --newonly: (optional) only restore if there is a new point in time to restore
+* -x, --noindex: (optional) do not use search index to find files
 * -w, --wait: (optional) wait for completion and report status
 * -k, --taskname: (optional) set name of recovery task
 * -z, --sleeptimeseconds: (optional) sleep X seconds between status queries (default is 30)
