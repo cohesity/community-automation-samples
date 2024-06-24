@@ -2,6 +2,7 @@
 
 ## 2024-06-24
 
+* [updateSaaSconnectorPassword.ps1](https://github.com/cohesity/community-automation-samples/tree/main/ccs/powershell/updateSaaSconnectorPassword) [`New`] update admin password on SaaS connector
 * [protectLinux.py](https://github.com/cohesity/community-automation-samples/tree/main/python/protectLinux) [`Update`] added -al, --alerton and -ar --recipients parameters
 * [protectUDA.py](https://github.com/cohesity/community-automation-samples/tree/main/python/protectUDA) [`Update`] added -al, --alerton and -ar --recipients parameters
 * [findFiles.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/fileFiles) [`Update`] added support for multiple search strings
