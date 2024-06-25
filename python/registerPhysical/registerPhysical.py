@@ -98,13 +98,13 @@ if throttle > 0:
     }
 
 for server in servernames:
-
+    existingsourceId = None
     if sources is not None and 'rootNodes' in sources and sources['rootNodes'] is not None and len(sources['rootNodes']) > 0:
         existingsource = [s for s in sources['rootNodes'] if s['rootNode']['name'].lower() == server.lower()]
-    if existingsource is not None and len(existingsource) > 0:
-        existingsourceId = existingsource[0]['rootNode']['id']
-    else:
-        existingsourceId = None
+        if existingsource is not None and len(existingsource) > 0:
+            existingsourceId = existingsource[0]['rootNode']['id']
+        else:
+            existingsourceId = None
 
     newSource = {
         'entity': {
@@ -120,7 +120,7 @@ for server in servernames:
             'type': 6,
             'hostType': 1
         },
-        'sourceSideDedupEnabled': True,
+        'sourceSideDedupEnabled': False,
         'throttlingPolicy': {
             'isThrottlingEnabled': False
         },
