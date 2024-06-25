@@ -1,7 +1,12 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-06-25
+
+* [registerPhysical.py](https://github.com/cohesity/community-automation-samples/tree/main/python/registerPhysical) [`Fix`] fixed error when no existing physical sources are registered
+
 ## 2024-06-24
 
+* [restartFailedJobs.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/restartFailedJobs) [`Update`] added option to only restart sources that failed with transport error
 * [cohesity-api.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/cohesity-api) [`Fix`] fixed SaaS connector authentication error: KInvalidError
 * [updateSaaSconnectorPassword.ps1](https://github.com/cohesity/community-automation-samples/tree/main/ccs/powershell/updateSaaSconnectorPassword) [`New`] update admin password on SaaS connector
 * [protectLinux.py](https://github.com/cohesity/community-automation-samples/tree/main/python/protectLinux) [`Update`] added -al, --alerton and -ar --recipients parameters
