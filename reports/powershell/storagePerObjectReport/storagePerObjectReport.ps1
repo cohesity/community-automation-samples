@@ -1,4 +1,4 @@
-# version: 2024-05-29
+# version: 2024-06-26
 
 # process commandline arguments
 [CmdletBinding()]
@@ -23,6 +23,8 @@ param (
     [Parameter()][switch]$includeArchives,
     [Parameter()][string]$outfileName
 )
+
+$scriptversion = '2024-06-26'
 
 # source the cohesity-api helper code
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
@@ -65,7 +67,7 @@ foreach ($Parameter in $ParameterList) {
 
 # headings
 """Cluster Name"",""Origin"",""Stats Age (Days)"",""Protection Group"",""Tenant"",""Storage Domain ID"",""Storage Domain Name"",""Environment"",""Source Name"",""Object Name"",""Front End Allocated $unit"",""Front End Used $unit"",""$unit Stored (Before Reduction)"",""$unit Stored (After Reduction)"",""$unit Stored (After Reduction and Resiliency)"",""Reduction Ratio"",""$unit Change Last $growthDays Days (After Reduction and Resiliency)"",""Snapshots"",""Log Backups"",""Oldest Backup"",""Newest Backup"",""Newest DataLock Expiry"",""Archive Count"",""Oldest Archive"",""$unit Archived"",""$unit per Archive Target"",""Description"",""VM Tags""" | Out-File -FilePath $outfileName # -Encoding utf8
-"""Cluster Name"",""Total Used $unit"",""BookKeeper Used $unit"",""Unaccounted Usage $unit"",""Unaccounted Percent"",""Reduction Ratio"",""All Objects Front End Size $unit"",""All Objects Stored (After Reduction) $unit"",""All Objects Stored (After Reduction and Resiliency) $unit"",""Storage Variance Factor""" | Out-File -FilePath $clusterStatsFileName
+"""Cluster Name"",""Total Used $unit"",""BookKeeper Used $unit"",""Unaccounted Usage $unit"",""Unaccounted Percent"",""Reduction Ratio"",""All Objects Front End Size $unit"",""All Objects Stored (After Reduction) $unit"",""All Objects Stored (After Reduction and Resiliency) $unit"",""Storage Variance Factor"",""Script Version""" | Out-File -FilePath $clusterStatsFileName
 
 if($secondFormat){
     $outfile2 = "customFormat2-storagePerObjectReport-$dateString.csv"
@@ -571,8 +573,7 @@ function reportStorage(){
             }else{
                 $stats = $replicaStats
             }
-            if($stats){
-                
+            if($stats){    
                 $thisStat = $stats.statsList | Where-Object {$_.id -eq $v1JobId}
             }
             $endUsecs = $nowUsecs
@@ -667,13 +668,20 @@ function reportStorage(){
     
     # build total job FE sizes
     foreach($view in $views.views){
-        if($view.PSObject.Properties['stats']){
-            $viewStats = $view.stats.dataUsageStats
-        }elseif($view.name -in $viewHistory.Keys){
+        if($view.name -in $viewHistory.Keys){
             $viewStats = $viewHistory[$view.name]['stats'].stats
+        }elseif($view.PSObject.Properties['stats']){
+            $viewStats = $view.stats.dataUsageStats
         }else{
             continue
         }
+        # if($view.PSObject.Properties['stats']){
+        #     $viewStats = $view.stats.dataUsageStats
+        # }elseif($view.name -in $viewHistory.Keys){
+        #     $viewStats = $viewHistory[$view.name]['stats'].stats
+        # }else{
+        #     continue
+        # }
         try{
             $jobName = $view.viewProtection.protectionGroups[-1].groupName
         }catch{
@@ -787,7 +795,7 @@ function reportStorage(){
     $unaccounted = $clusterUsedBytes - $bookKeeperBytes
     $unaccountedPercent = [math]::Round(100 * ($unaccounted / $clusterUsedBytes), 1)
     $storageVarianceFactor = [math]::Round($clusterUsedBytes / $sumObjectsWrittenWithResiliency, 4)
-    """$($cluster.name)"",""$clusterUsed"",""$(toUnits $bookKeeperBytes)"",""$(toUnits $unaccounted)"",""$unaccountedPercent"",""$clusterReduction"",""$(toUnits $sumObjectsUsed)"",""$(toUnits $sumObjectsWritten)"",""$(toUnits $sumObjectsWrittenWithResiliency)"",""$storageVarianceFactor""" | Out-File -FilePath $clusterStatsFileName -Append
+    """$($cluster.name)"",""$clusterUsed"",""$(toUnits $bookKeeperBytes)"",""$(toUnits $unaccounted)"",""$unaccountedPercent"",""$clusterReduction"",""$(toUnits $sumObjectsUsed)"",""$(toUnits $sumObjectsWritten)"",""$(toUnits $sumObjectsWrittenWithResiliency)"",""$storageVarianceFactor"",""$scriptVersion""" | Out-File -FilePath $clusterStatsFileName -Append
 }
 
 # authentication =============================================

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Storage Per Object Report version 2024.05.31 for Python"""
+"""Storage Per Object Report version 2024.06.26 for Python"""
 
 # import pyhesity wrapper module
 from pyhesity import *
@@ -44,6 +44,8 @@ skipdeleted = args.skipdeleted
 debug = args.debug
 includearchives = args.includearchives
 
+scriptVersion = '2024-06-26'
+
 if vips is None or len(vips) == 0:
     vips = ['helios.cohesity.com']
 
@@ -68,7 +70,7 @@ clusterStatsFileName = '%s/storagePerObjectReport-%s-clusterstats.csv' % (folder
 csv = codecs.open(csvfileName, 'w', 'utf-8')
 clusterStats = codecs.open(clusterStatsFileName, 'w', 'utf-8')
 csv.write('"Cluster Name","Origin","Stats Age (Days)","Protection Group","Tenant","Storage Domain ID","Storage Domain Name","Environment","Source Name","Object Name","Front End Allocated %s","Front End Used %s","%s Stored (Before Reduction)","%s Stored (After Reduction)","%s Stored (After Reduction and Resiliency)","Reduction Ratio","%s Change Last %s Days (After Reduction and Resiliency)","Snapshots","Log Backups","Oldest Backup","Newest Backup","Newest DataLock Expiry","Archive Count","Oldest Archive","%s Archived","%s per Archive Target","Description","VM Tags"\n' % (units, units, units, units, units, units, growthdays, units, units))
-clusterStats.write('"Cluster Name","Total Used %s","BookKeeper Used %s","Unaccounted Usage %s","Unaccounted Percent","Reduction Ratio","All Objects Front End Size %s","All Objects Stored (After Reduction) %s","All Objects Stored (After Reduction and Resiliency) %s","Storage Variance Factor"\n' % (units, units, units, units, units, units))
+clusterStats.write('"Cluster Name","Total Used %s","BookKeeper Used %s","Unaccounted Usage %s","Unaccounted Percent","Reduction Ratio","All Objects Front End Size %s","All Objects Stored (After Reduction) %s","All Objects Stored (After Reduction and Resiliency) %s","Storage Variance Factor","Script Version"\n' % (units, units, units, units, units, units))
 
 
 def reportStorage():
@@ -499,12 +501,18 @@ def reportStorage():
                 jobName = '-'
             if jobName not in viewJobStats:
                 viewJobStats[jobName] = 0
-            if 'stats' in view:
-                viewJobStats[jobName] += view['stats']['dataUsageStats']['totalLogicalUsageBytes']
-            elif view['name'] in viewHistory and 'stats' in viewHistory[view['name']] and viewHistory[view['name']]['stats'] is not None and len(viewHistory[view['name']]['stats']) > 0 and 'stats' in viewHistory[view['name']]['stats'][0]:
+            if view['name'] in viewHistory and 'stats' in viewHistory[view['name']] and viewHistory[view['name']]['stats'] is not None and len(viewHistory[view['name']]['stats']) > 0 and 'stats' in viewHistory[view['name']]['stats'][0]:
                 view['stats'] = {'dataUsageStats': viewHistory[view['name']]['stats'][0]['stats']}
+            elif 'stats' in view:
+                viewJobStats[jobName] += view['stats']['dataUsageStats']['totalLogicalUsageBytes']
             else:
                 continue
+            # if 'stats' in view:
+            #     viewJobStats[jobName] += view['stats']['dataUsageStats']['totalLogicalUsageBytes']
+            # elif view['name'] in viewHistory and 'stats' in viewHistory[view['name']] and viewHistory[view['name']]['stats'] is not None and len(viewHistory[view['name']]['stats']) > 0 and 'stats' in viewHistory[view['name']]['stats'][0]:
+            #     view['stats'] = {'dataUsageStats': viewHistory[view['name']]['stats'][0]['stats']}
+            # else:
+            #     continue
         for view in views['views']:
             if 'stats' not in view:
                 continue
@@ -602,7 +610,7 @@ def reportStorage():
     unaccounted = clusterUsedBytes - bookKeeperBytes
     unaccountedPercent = round(100 * (unaccounted / clusterUsedBytes), 1)
     storageVarianceFactor = round(clusterUsed / sumObjectsWrittenWithResiliency, 4)
-    clusterStats.write('"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s",\n' % (cluster['name'], clusterUsed, round(bookKeeperBytes / multiplier, 1), round(unaccounted / multiplier, 1), unaccountedPercent, clusterReduction, sumObjectsUsed, sumObjectsWritten, sumObjectsWrittenWithResiliency, storageVarianceFactor))
+    clusterStats.write('"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' % (cluster['name'], clusterUsed, round(bookKeeperBytes / multiplier, 1), round(unaccounted / multiplier, 1), unaccountedPercent, clusterReduction, sumObjectsUsed, sumObjectsWritten, sumObjectsWrittenWithResiliency, storageVarianceFactor, scriptVersion))
 
 
 for vip in vips:
