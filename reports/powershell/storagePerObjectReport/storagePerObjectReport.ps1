@@ -1,4 +1,4 @@
-# version: 2024-06-26
+# version: 2024-06-26b
 
 # process commandline arguments
 [CmdletBinding()]
@@ -24,7 +24,7 @@ param (
     [Parameter()][string]$outfileName
 )
 
-$scriptversion = '2024-06-26'
+$scriptversion = '2024-06-26b'
 
 # source the cohesity-api helper code
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
@@ -153,6 +153,26 @@ function reportStorage(){
         }
     }
 
+    # viewRunStats
+    $cookie = ''
+    $viewRunStats = @{'statsList'= @()}
+    while($True){
+        $theseStats = api get "stats/consumers?consumerType=kViewProtectionRuns&msecsBeforeCurrentTimeToCompare=$($msecsBeforeCurrentTimeToCompare)&cookie=$cookie"
+        if($theseStats -and $theseStats.PSObject.Properties['statsList']){
+            $viewRunStats['statsList'] = @($viewRunStats['statsList'] + $theseStats.statsList)
+        }
+        if($theseStats -and $theseStats.PSObject.Properties['cookie']){
+            $cookie = $theseStats.cookie
+        }else{
+            $cookie = ''
+        }
+        if($cookie -eq ''){
+            break
+        }
+    }
+
+    $viewJobAltStats = @{}
+
     foreach($job in $jobs.protectionGroups | Sort-Object -Property name){
         $statsAge = '-'
         $origin = 'local'
@@ -163,7 +183,7 @@ function reportStorage(){
             $vmsearch = api get "/searchvms?allUnderHierarchy=true&entityTypes=kVMware&jobIds=$(($job.id -split ':')[2])&vmName=$($job.name)"
         }
         $v1JobId = ($job.id -split ':')[2]
-        if($job.environment -notin @('kView', 'kRemoteAdapter')){
+        if($job.environment -notin @('kView')){
             output "  $($job.name)"
             $tenant = $job.permissions.name
             # get resiliency factor
@@ -196,6 +216,9 @@ function reportStorage(){
                 $stats = $localStats
             }else{
                 $stats = $replicaStats
+            }
+            if($job.environment -eq 'kView'){
+                $stats = $viewRunStats
             }
             if($stats){
                 $thisStat = $stats.statsList | Where-Object {$_.id -eq $v1JobId -or $_.name -eq $job.name}
@@ -567,12 +590,8 @@ function reportStorage(){
                     """$($cluster.name)"",""$monthString"",""$fqObjectName"",""$($job.description)"",""$(toUnits $objWrittenWithResiliency)""" | Out-File -FilePath $outfile2 -Append
                 }
             }
-        }elseif($job.environment -in @('kView', 'kRemoteAdapter')){
-            if($job.isActive -eq $True){
-                $stats = $localStats
-            }else{
-                $stats = $replicaStats
-            }
+        }elseif($job.environment -in @('kView')){
+            $stats = $viewRunStats
             if($stats){    
                 $thisStat = $stats.statsList | Where-Object {$_.id -eq $v1JobId}
             }
@@ -667,53 +686,51 @@ function reportStorage(){
     $viewJobStats = @{}
     
     # build total job FE sizes
+    
     foreach($view in $views.views){
-        if($view.name -in $viewHistory.Keys){
-            $viewStats = $viewHistory[$view.name]['stats'].stats
-        }elseif($view.PSObject.Properties['stats']){
-            $viewStats = $view.stats.dataUsageStats
-        }else{
-            continue
-        }
-        # if($view.PSObject.Properties['stats']){
-        #     $viewStats = $view.stats.dataUsageStats
-        # }elseif($view.name -in $viewHistory.Keys){
-        #     $viewStats = $viewHistory[$view.name]['stats'].stats
-        # }else{
-        #     continue
-        # }
         try{
             $jobName = $view.viewProtection.protectionGroups[-1].groupName
+            if($view.PSObject.Properties['stats']){
+                $viewStats = $view.stats.dataUsageStats
+            }else{
+                continue
+            }
+            if($jobName -notin $viewJobAltStats.Keys){
+                $viewJobAltStats[$jobName] = @{"totalConsumed" = 0}
+            }
+            $viewJobAltStats[$jobName]["totalConsumed"] += $viewStats.storageConsumedBytes
         }catch{
-            $jobName = '-'
+
         }
-        if($jobName -notin $viewJobStats.Keys){
-            $viewJobStats[$jobName] = 0
-        }
-        $viewJobStats[$jobName] += $viewStats.totalLogicalUsageBytes
     }
     
     foreach($view in $views.views){
-        if($view.PSObject.Properties['stats']){
-            $viewStats = $view.stats.dataUsageStats
-        }elseif($view.name -in $viewHistory.Keys){
-            $viewStats = $viewHistory[$view.name]['stats'].stats
-        }else{
-            continue
-        }
         $origin = 'local'
-        $statsAge = '-'
         try{
             $jobName = $view.viewProtection.protectionGroups[-1].groupName
             $thisJob = $jobs.protectionGroups | Where-Object {$_.name -eq $jobName}
+            if($thisJob.environment -eq "kRemoteAdapter"){
+                continue
+            }
             if($thisJob){
                 if($thisJob.isActive -ne $True){
                     $origin = 'replica'
                 }
             }
+            if($jobName -notin $viewJobStats.Keys){
+                $viewJobStats[$jobName] = $viewHistory[$view.name]['stats']
+            }
+
         }catch{
             $jobName = '-'
         }
+        if($view.PSObject.Properties['stats']){
+            $viewStats = $view.stats.dataUsageStats
+        }else{
+            continue
+        }
+        
+        $statsAge = '-'
         $numSnaps = 0
         $numLogs = 0
         $oldestBackup = '-'
@@ -739,30 +756,33 @@ function reportStorage(){
         $jobWritten = 0
         $consumption = 0
         $objFESize = toUnits $viewStats.totalLogicalUsageBytes
-        if($jobName -ne '-' -and $viewJobStats[$jobName] -gt 0){
-            $objWeight = $viewStats.totalLogicalUsageBytes / $viewJobStats[$jobName]
+        $objGrowth = 0
+        if($jobName -ne '-' -and $jobName -in $viewJobStats.Keys){
+            $objWeight = $viewStats.storageConsumedBytes / $viewJobAltStats[$jobName]["totalConsumed"]
+            $dataIn = $viewJobStats[$jobName].stats.dataInBytes * $objWeight
+            $dataInAfterDedup = $viewJobStats[$jobName].stats.dataInBytesAfterDedup * $objWeight
+            $jobWritten = $viewJobStats[$jobName].stats.dataWrittenBytes * $objWeight
+            $consumption =  $viewJobStats[$jobName].stats.localTotalPhysicalUsageBytes * $objWeight
+            $objGrowth = toUnits ($objWeight * ($viewJobStats[$jobName].stats.storageConsumedBytes - $viewJobStats[$jobName].stats.storageConsumedBytesPrev))
         }else{
             $objWeight = 1
+            $dataIn = $viewStats.dataInBytes
+            $dataInAfterDedup = $viewStats.dataInBytesAfterDedup
+            $jobWritten = $viewStats.dataWrittenBytes
+            $consumption = $viewStats.localTotalPhysicalUsageBytes
+            $objGrowth = toUnits ($viewStats.storageConsumedBytes - $viewStats.storageConsumedBytesPrev)
         }
-        $dataIn = $viewStats.dataInBytes
-        $dataInAfterDedup = $viewStats.dataInBytesAfterDedup
-        $jobWritten = $viewStats.dataWrittenBytes
         $statsTimeUsecs = $viewStats.dataWrittenBytesTimestampUsec
         if($statsTimeUsecs -gt 0){
             $statsAge = [math]::Round(($nowUsecs - $statsTimeUsecs) / 86400000000, 0)
         }
-        $consumption = $viewStats.localTotalPhysicalUsageBytes
+        
         if($dataInAfterDedup -gt 0 -and $jobWritten -gt 0){
             $dedup = [math]::Round($dataIn / $dataInAfterDedup, 1)
             $compression = [math]::Round($dataInAfterDedup / $jobWritten, 1)
             $jobReduction = [math]::Round(($dataIn / $dataInAfterDedup) * ($dataInAfterDedup / $jobWritten), 1)
         }else{
             $jobReduction = 1
-        }
-        $stat = $stats.statsList | Where-Object name -eq $viewName
-        $objGrowth = 0
-        if($stat){
-            $objGrowth = toUnits ($stat.stats.storageConsumedBytes - $stat.stats.storageConsumedBytesPrev)
         }
         # archive stats
         $totalArchived = 0
