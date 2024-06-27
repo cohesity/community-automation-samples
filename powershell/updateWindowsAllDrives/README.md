@@ -44,3 +44,5 @@ Place both files in a folder together and run the main script like so:
 
 * -jobName: (optional) one or more job names to modify (comma separated)
 * -jobList: (optional) text file of job names to modify (one per line)
+* -commit: (optional) commit changes (if omitted, only show what it would do)
+* -skipHostsWithExcludes: (optional) skip hosts with excludes present

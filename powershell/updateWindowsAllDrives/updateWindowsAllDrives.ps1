@@ -11,7 +11,9 @@ param (
     [Parameter()][string]$mfaCode = $null,
     [Parameter()][switch]$emailMfaCode,
     [Parameter()][array]$jobName,
-    [Parameter()][string]$jobList
+    [Parameter()][string]$jobList,
+    [Parameter()][switch]$commit,
+    [Parameter()][switch]$skipHostsWithExcludes
 )
 
 # source the cohesity-api helper code
@@ -69,7 +71,11 @@ if($jobNames.Count -gt 0){
 
 $cluster = api get cluster
 $outFileName = join-path -Path $PSScriptRoot -ChildPath "updateWindowsAllDrives-$($cluster.name).csv"
-"""Job Name"",""Tenant"",""ObjectName"",""Updated""" | Out-File -FilePath $outfileName
+"""Job Name"",""Tenant"",""ObjectName"",""Include Path"",""Exclude Paths""" | Out-File -FilePath $outfileName
+
+$jobsToUpdate = @()
+
+Write-Host ""
 
 foreach($job in $jobs.protectionGroups | Sort-Object -Property name){
     $updateJob = $false
@@ -93,19 +99,36 @@ foreach($job in $jobs.protectionGroups | Sort-Object -Property name){
             }
             if($sourceType -eq 'kWindows'){
                 $includePaths = @($object.filePaths.includedPath)
-                if($includePaths.Count -eq 1 -and $includePaths[0] -eq '/c/' -and $object.filePaths[0].excludedPaths -eq $null){
+                if($includePaths.Count -eq 1 -and $includePaths[0] -eq '/c/' -and ($object.filePaths[0].excludedPaths -eq $null -or $skipHostsWithExcludes -ne $True)){
+                    if($object.filePaths[0].excludedPaths -ne $null){
+                        $excludedPaths = $object.filePaths[0].excludedPaths -join "; "
+                    }else{
+                        $excludedPaths = ''
+                    }
                     $updateObject = $True
-                    Write-Host "    updating $($object.name)"
+                    if($commit -eq $True){
+                        Write-Host "    updating $($object.name)"
+                    }else{
+                        Write-Host "    would update $($object.name)"
+                    }
                     $object.filePaths[0].includedPath = '$ALL_LOCAL_DRIVES'
                     $updateJob = $True
-                    """$($job.name)"",""$tenant"",""$($object.name)"",""$updateObject""" | Out-File -FilePath $outfileName -Append
+                    """$($job.name)"",""$tenant"",""$($object.name)"",""$($includePaths[0])"",""$excludedPaths""" | Out-File -FilePath $outfileName -Append
                 }
             }
         }
         if($updateJob -eq $True){
+            $jobsToUpdate = @($jobsToUpdate + $($job.name))
+        }
+        if($updateJob -eq $True -and $commit -eq $True){
             $result = api put -v2 data-protect/protection-groups/$($job.id) $job
         }
     }
 }
 
-"`nOutput saved to $outfileName`n"
+if($commit -ne $True -and $jobsToUpdate.Count -gt 0){
+    Write-Host "`nThe following jobs would be updated:`n"
+    Write-Host $($jobsToUpdate -join "`n")
+}
+
+Write-Host "`nOutput saved to $outfileName`n"
