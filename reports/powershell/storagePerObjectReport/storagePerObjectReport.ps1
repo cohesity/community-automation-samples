@@ -1,4 +1,4 @@
-# version: 2024-06-26b
+# version: 2024-06-27
 
 # process commandline arguments
 [CmdletBinding()]
@@ -24,7 +24,7 @@ param (
     [Parameter()][string]$outfileName
 )
 
-$scriptversion = '2024-06-26b'
+$scriptversion = '2024-06-27'
 
 # source the cohesity-api helper code
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
@@ -181,6 +181,9 @@ function reportStorage(){
         }
         if($job.environment -eq 'kVMware'){
             $vmsearch = api get "/searchvms?allUnderHierarchy=true&entityTypes=kVMware&jobIds=$(($job.id -split ':')[2])&vmName=$($job.name)"
+        }
+        if($job.environment -eq 'kPhysical'){
+            $vmsearch = api get "/searchvms?allUnderHierarchy=true&entityTypes=kPhysical&jobIds=$(($job.id -split ':')[2])&vmName=$($job.name)"
         }
         $v1JobId = ($job.id -split ':')[2]
         if($job.environment -notin @('kView')){
@@ -349,7 +352,19 @@ function reportStorage(){
                                     $objects[$objId]['alloc'] = $snap.snapshotInfo.stats.logicalSizeBytes
                                 }
                             }
-
+                            if($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume' -and $objects[$objId]['fetb'] -eq 0){
+                                if($dbg){
+                                    Write-Host "    getting fetb"
+                                }
+                                $vms = $vmsearch.vms | Where-Object {$_.vmDocument.objectName -eq $object.object.name}
+                                if($vms){
+                                    $vmbytes = $vms[0].vmDocument.objectId.entity.sizeInfo.value.sourceDataSizeBytes
+                                    if($vmbytes -gt 0){
+                                        $objects[$objId]['logical'] = $vmbytes
+                                        $objects[$objId]['fetb'] = $vmbytes
+                                    }
+                                }
+                            }
                             if($job.environment -eq 'kVMware' -and $objects[$objId]['fetb'] -eq 0){
                                 if($dbg){
                                     Write-Host "    getting fetb"
@@ -368,7 +383,7 @@ function reportStorage(){
                                 }
                             }
                             if($snap -and $objId -in $objects.Keys -and $snap.snapshotInfo.stats.PSObject.Properties['logicalSizeBytes'] -and $snap.snapshotInfo.stats.logicalSizeBytes -gt $objects[$objId]['logical']){
-                                if($job.environment -ne 'kVMware' -or $objects[$objId]['logical'] -eq 0){
+                                if($objects[$objId]['logical'] -eq 0 -or ($job.environment -ne 'kVMware' -and ($job.environment -ne 'kPhysical' -and $job.physicalParams.protectionType -ne 'kVolume'))){
                                     $objects[$objId]['logical'] = $snap.snapshotInfo.stats.logicalSizeBytes
                                 }
                             }
@@ -576,7 +591,7 @@ function reportStorage(){
                     $fqObjectName = "$($sourceName)/$($thisObject['name'])" -replace '//', '/'
                 }
                 $alloc = toUnits $thisObject['logical']
-                if($job.environment -eq 'kVMware'){
+                if($job.environment -eq 'kVMware' -or ($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume')){
                     $alloc = toUnits $thisObject['alloc']
                 }
                 $sumObjectsUsed += $thisObject['logical']
