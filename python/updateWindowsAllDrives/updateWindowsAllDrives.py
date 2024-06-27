@@ -119,7 +119,7 @@ for job in sorted(jobs['protectionGroups'], key=lambda job: job['name'].lower())
                     print('    updating %s' % object['name'])
                     object['filePaths'][0]['includedPath'] = '$ALL_LOCAL_DRIVES'
                     updateJob = True
-                f.write('%s,%s,%s,%s\n' % (job['name'], tenant, object['name'], updateObject))
+                    f.write('%s,%s,%s,%s\n' % (job['name'], tenant, object['name'], updateObject))
         if updateJob is True:
             result = api('put', 'data-protect/protection-groups/%s' % job['id'], job, v=2)
 f.close()
