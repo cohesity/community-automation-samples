@@ -1,5 +1,13 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-06-27
+
+* [storagePerObjectReport.py](https://github.com/cohesity/community-automation-samples/tree/main/reports/python/storagePerObjectReport) [`Fix`] fixed protected view consumption calculation
+
+## 2024-06-26
+
+* [storagePerObjectReport.ps1](https://github.com/cohesity/community-automation-samples/tree/main/reports/powershell/storagePerObjectReport) [`Fix`] fixed protected view consumption calculation
+
 ## 2024-06-25
 
 * [registerPhysical.py](https://github.com/cohesity/community-automation-samples/tree/main/python/registerPhysical) [`Fix`] fixed error when no existing physical sources are registered
