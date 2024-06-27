@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Storage Per Object Report version 2024.06.26 for Python"""
+"""Storage Per Object Report version 2024.06.27 for Python"""
 
 # import pyhesity wrapper module
 from pyhesity import *
@@ -44,7 +44,7 @@ skipdeleted = args.skipdeleted
 debug = args.debug
 includearchives = args.includearchives
 
-scriptVersion = '2024-06-26'
+scriptVersion = '2024-06-27'
 
 if vips is None or len(vips) == 0:
     vips = ['helios.cohesity.com']
@@ -102,6 +102,7 @@ def reportStorage():
 
     storageDomains = api('get', 'viewBoxes')
 
+    # local stats
     sourceNames = {}
     cookie = ''
     localStats = {'statsList': []}
@@ -115,6 +116,8 @@ def reportStorage():
             cookie = ''
         if cookie == '':
             break
+
+    # replica stats
     cookie = ''
     replicaStats = {'statsList': []}
     while True:
@@ -127,6 +130,23 @@ def reportStorage():
             cookie = ''
         if cookie == '':
             break
+
+    # view run stats
+    cookie = ''
+    viewRunStats = {'statsList': []}
+    while True:
+        theseStats = api('get', 'stats/consumers?consumerType=kViewProtectionRuns&msecsBeforeCurrentTimeToCompare=%s&cookie=%s' % (msecsBeforeCurrentTimeToCompare, cookie))
+        if 'statsList' in theseStats:
+            viewRunStats['statsList'] = viewRunStats['statsList'] + theseStats['statsList']
+        if 'cookie' in theseStats:
+            cookie = theseStats['cookie']
+        else:
+            cookie = ''
+        if cookie == '':
+            break
+
+    viewJobAltStats = {}
+
     for job in sorted(jobs['protectionGroups'], key=lambda job: job['name'].lower()):
         v1JobId = job['id'].split(':')[2]
         statsAge = '-'
@@ -136,7 +156,7 @@ def reportStorage():
         origin = 'local'
         if job['isActive'] is not True:
             origin = 'replica'
-        if job['environment'] not in ['kView', 'kRemoteAdapter']:
+        if job['environment'] not in ['kView']:
             tenant = ''
             if 'permissions' in job and len(job['permissions']) > 0 and 'name' in job['permissions'][0]:
                 tenant = job['permissions'][0]['name']
@@ -420,10 +440,11 @@ def reportStorage():
                         pass
                     csv.write('"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' % (cluster['name'], origin, statsAge, job['name'], tenant, sdid, sdname, job['environment'][1:], sourceName, thisObject['name'], alloc, objFESize, objDataIn, objWritten, objWrittenWithResiliency, jobReduction, objGrowth, thisObject['numSnaps'], thisObject['numLogs'], oldestBackup, newestBackup, thisObject['lastDataLock'], archiveCount, oldestArchive, totalArchived, vaultStats, jobDescription, thisObject['vmTags']))
         else:
-            if job['isActive'] is True:
-                stats = localStats
-            else:
-                stats = replicaStats
+            stats = viewRunStats
+            # if job['isActive'] is True:
+            #     stats = localStats
+            # else:
+            #     stats = replicaStats
             if 'statsList' in stats and stats['statsList'] is not None:
                 thisStat = [s for s in stats['statsList'] if s['id'] == int(v1JobId)]
             endUsecs = nowUsecs
@@ -492,30 +513,36 @@ def reportStorage():
     views = api('get', 'file-services/views?maxCount=2000&includeTenants=true&includeStats=true&includeProtectionGroups=true&includeInactive=true', v=2)
     if 'views' in views and views['views'] is not None and len(views['views']) > 0:
         stats = api('get', 'stats/consumers?msecsBeforeCurrentTimeToCompare=%s&consumerType=kViews' % (growthdays * 86400000))
-        # build total job FE sizes
         viewJobStats = {}
+
+        # build total view job consumptions
         for view in views['views']:
+            jobName = None
             try:
                 jobName = view['viewProtection']['protectionGroups'][-1]['groupName']
+                thisJob = [j for j in jobs['protectionGroups'] if j['name'].lower() == jobName.lower()]
+                if thisJob is not None and len(thisJob) > 0:
+                    if thisJob[0]['isActive'] is not True:
+                        origin = 'replica'
+                    if thisJob[0]['environment'] == 'kRemoteAdapter':
+                        continue
+
+                if 'stats' in view:
+                    viewStats = view['stats']['dataUsageStats']
+                else:
+                    continue
+                if jobName not in viewJobAltStats:
+                    viewJobAltStats[jobName] = {"totalConsumed": 0}
+                viewJobAltStats[jobName]["totalConsumed"] += viewStats['storageConsumedBytes']
+                if jobName not in viewJobStats:
+                    viewJobStats[jobName] = viewHistory[view['name']]['stats']
             except Exception:
-                jobName = '-'
-            if jobName not in viewJobStats:
-                viewJobStats[jobName] = 0
-            if view['name'] in viewHistory and 'stats' in viewHistory[view['name']] and viewHistory[view['name']]['stats'] is not None and len(viewHistory[view['name']]['stats']) > 0 and 'stats' in viewHistory[view['name']]['stats'][0]:
-                view['stats'] = {'dataUsageStats': viewHistory[view['name']]['stats'][0]['stats']}
-            elif 'stats' in view:
-                viewJobStats[jobName] += view['stats']['dataUsageStats']['totalLogicalUsageBytes']
-            else:
-                continue
-            # if 'stats' in view:
-            #     viewJobStats[jobName] += view['stats']['dataUsageStats']['totalLogicalUsageBytes']
-            # elif view['name'] in viewHistory and 'stats' in viewHistory[view['name']] and viewHistory[view['name']]['stats'] is not None and len(viewHistory[view['name']]['stats']) > 0 and 'stats' in viewHistory[view['name']]['stats'][0]:
-            #     view['stats'] = {'dataUsageStats': viewHistory[view['name']]['stats'][0]['stats']}
-            # else:
-            #     continue
+                pass
+
         for view in views['views']:
             if 'stats' not in view:
                 continue
+            viewStats = view['stats']['dataUsageStats']
             origin = 'local'
             try:
                 jobName = view['viewProtection']['protectionGroups'][-1]['groupName']
@@ -523,6 +550,8 @@ def reportStorage():
                 if thisJob is not None and len(thisJob) > 0:
                     if thisJob[0]['isActive'] is not True:
                         origin = 'replica'
+                    if thisJob[0]['environment'] == 'kRemoteAdapter':
+                        continue
             except Exception:
                 jobName = '-'
             numSnaps = 0
@@ -550,38 +579,66 @@ def reportStorage():
             consumption = 0
             objWeight = 1
             statsAge = '-'
-            try:
-                objFESize = round(view['stats']['dataUsageStats']['totalLogicalUsageBytes'] / multiplier, 1)
-                sumObjectsUsed += objFESize
-                dataIn = view['stats']['dataUsageStats'].get('dataInBytes', 0)
-                dataInAfterDedup = view['stats']['dataUsageStats'].get('dataInBytesAfterDedup', 0)
-                jobWritten = view['stats']['dataUsageStats'].get('dataWrittenBytes', 0)
-                sumObjectsWritten += round(jobWritten / multiplier, 1)
-                statsTimeUsecs = view['stats']['dataUsageStats'].get('dataWrittenBytesTimestampUsec', 0)
-                if statsTimeUsecs > 0:
-                    statsAge = round((nowUsecs - statsTimeUsecs) / 86400000000, 0)
-                else:
-                    statsTime = '-'
-                consumption = view['stats']['dataUsageStats'].get('localTotalPhysicalUsageBytes', 0)
-                sumObjectsWrittenWithResiliency += round(consumption / multiplier, 1)
-                if jobName != '-':
-                    objWeight = view['stats']['dataUsageStats']['totalLogicalUsageBytes'] / viewJobStats[jobName]
-            except Exception:
-                pass
+            objGrowth = 0
+            if jobName != '-' and jobName in viewJobStats:
+                objWeight = viewStats['storageConsumedBytes'] / viewJobAltStats[jobName]["totalConsumed"]
+                # display(viewJobStats[jobName][0]['stats'])
+                dataIn = viewJobStats[jobName][0]['stats']['dataInBytes'] * objWeight
+                dataInAfterDedup = viewJobStats[jobName][0]['stats']['dataInBytesAfterDedup'] * objWeight
+                jobWritten = viewJobStats[jobName][0]['stats']['dataWrittenBytes'] * objWeight
+                consumption =  viewJobStats[jobName][0]['stats']['localTotalPhysicalUsageBytes'] * objWeight
+                objGrowth = round(objWeight * (viewJobStats[jobName][0]['stats']['storageConsumedBytes'] - viewJobStats[jobName][0]['stats']['storageConsumedBytesPrev']) / multiplier, 1)
+            else:
+                dataIn = viewStats['dataInBytes']
+                dataInAfterDedup = viewStats['dataInBytesAfterDedup']
+                jobWritten = viewStats['dataWrittenBytes']
+                consumption = viewStats['localTotalPhysicalUsageBytes']
+                # display(viewStats)
+                try:
+                    objGrowth = round((viewStats['storageConsumedBytes'] - viewStats['storageConsumedBytesPrev']) / multiplier, 1)
+                except Exception:
+                    pass
+            statsTimeUsecs = view['stats']['dataUsageStats'].get('dataWrittenBytesTimestampUsec', 0)
+            if statsTimeUsecs > 0:
+                statsAge = round((nowUsecs - statsTimeUsecs) / 86400000000, 0)
+            else:
+                statsTime = '-'
+            sumObjectsWritten += round(jobWritten / multiplier, 1)
+            sumObjectsWrittenWithResiliency += round(consumption / multiplier, 1)
+
+            # try:
+            #     objFESize = round(view['stats']['dataUsageStats']['totalLogicalUsageBytes'] / multiplier, 1)
+            #     sumObjectsUsed += objFESize
+            #     dataIn = view['stats']['dataUsageStats'].get('dataInBytes', 0)
+            #     dataInAfterDedup = view['stats']['dataUsageStats'].get('dataInBytesAfterDedup', 0)
+            #     jobWritten = view['stats']['dataUsageStats'].get('dataWrittenBytes', 0)
+            #     sumObjectsWritten += round(jobWritten / multiplier, 1)
+            #     statsTimeUsecs = view['stats']['dataUsageStats'].get('dataWrittenBytesTimestampUsec', 0)
+            #     if statsTimeUsecs > 0:
+            #         statsAge = round((nowUsecs - statsTimeUsecs) / 86400000000, 0)
+            #     else:
+            #         statsTime = '-'
+            #     consumption = view['stats']['dataUsageStats'].get('localTotalPhysicalUsageBytes', 0)
+            #     sumObjectsWrittenWithResiliency += round(consumption / multiplier, 1)
+            #     if jobName != '-':
+            #         objWeight = view['stats']['dataUsageStats']['totalLogicalUsageBytes'] / viewJobStats[jobName]
+            # except Exception:
+            #     pass
             if dataInAfterDedup > 0 and jobWritten > 0:
                 dedup = round(float(dataIn) / dataInAfterDedup, 1)
                 compression = round(float(dataInAfterDedup) / jobWritten, 1)
                 jobReduction = round((float(dataIn) / dataInAfterDedup) * (float(dataInAfterDedup) / jobWritten), 1)
             else:
                 jobReduction = 1
-            try:
-                stat = [s for s in stats['statsList'] if s['name'] == viewName]
-                if stat is not None and len(stat) > 0:
-                    if 'storageConsumedBytesPrev' not in stat[0]['stats']:
-                        stat[0]['stats']['storageConsumedBytesPrev'] = 0
-                    objGrowth = round((stat[0]['stats']['storageConsumedBytes'] - stat[0]['stats']['storageConsumedBytesPrev']) / multiplier, 1)
-            except Exception:
-                objGrowth = 0
+            # try:
+            #     stat = [s for s in stats['statsList'] if s['name'] == viewName]
+            #     if stat is not None and len(stat) > 0:
+            #         if 'storageConsumedBytesPrev' not in stat[0]['stats']:
+            #             stat[0]['stats']['storageConsumedBytesPrev'] = 0
+            #         objGrowth = round((stat[0]['stats']['storageConsumedBytes'] - stat[0]['stats']['storageConsumedBytesPrev']) / multiplier, 1)
+            # except Exception:
+            #     objGrowth = 0
+
             # archive Stats
             totalArchived = 0
             vaultStats = ''
