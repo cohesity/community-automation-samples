@@ -2,6 +2,7 @@
 
 ## 2024-06-27
 
+* [storagePerObjectReport.ps1](https://github.com/cohesity/community-automation-samples/tree/main/reports/powershell/storagePerObjectReport) [`Update`] improved used size for physical volume based servers
 * [updateWindowsAllDrives.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/updateWindowsAllDrives) [`New`] Update Windows File-Based Protection to Protect All Local Drives
 * [updateWindowsAllDrives.py](https://github.com/cohesity/community-automation-samples/tree/main/python/updateWindowsAllDrives) [`New`] Update Windows File-Based Protection to Protect All Local Drives
 * [storagePerObjectReport.py](https://github.com/cohesity/community-automation-samples/tree/main/reports/python/storagePerObjectReport) [`Fix`] fixed protected view consumption calculation
