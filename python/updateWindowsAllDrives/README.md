@@ -45,3 +45,5 @@ Place both files in a folder together and run the main script like so:
 
 * -j, --jobname: (optional) name of the job to update (repeat for multiple)
 * -l, --joblist: (optional) text file of job names to update (one per line)
+* -c, --commit: (optional) commit changes (if omitted, only show what it would do )
+* -s, --skiphostwithexcludes: (optional) do not update host if there are excludes present

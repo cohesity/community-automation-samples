@@ -20,6 +20,8 @@ parser.add_argument('-m', '--mfacode', type=str, default=None)
 parser.add_argument('-e', '--emailmfacode', action='store_true')
 parser.add_argument('-j', '--jobname', action='append', type=str)
 parser.add_argument('-l', '--joblist', type=str)
+parser.add_argument('-c', '--commit', action='store_true')
+parser.add_argument('-s', '--skiphostwithexcludes', action='store_true')
 args = parser.parse_args()
 
 vip = args.vip
@@ -33,6 +35,8 @@ mfacode = args.mfacode
 emailmfacode = args.emailmfacode
 jobnames = args.jobname
 joblist = args.joblist
+commit = args.commit
+skiphostwithexcludes = args.skiphostwithexcludes
 
 # authentication =========================================================
 apiauth(vip=vip, username=username, domain=domain, password=password, useApiKey=useApiKey, prompt=(not noprompt), mfaCode=mfacode, emailMfaCode=emailmfacode, tenantId=tenant)
@@ -42,6 +46,8 @@ if apiconnected() is False:
     print('authentication failed')
     exit(1)
 # end authentication =====================================================
+
+print()
 
 now = datetime.now()
 nowUsecs = dateToUsecs(now.strftime("%Y-%m-%d %H:%M:%S"))
@@ -53,7 +59,7 @@ outfile = 'updateWindowsAllDrives-%s-%s.csv' % (cluster['name'], dateString)
 f = codecs.open(outfile, 'w')
 
 # headings
-f.write('Job Name,Tenant,ObjectName,Updated\n')
+f.write('"Job Name","Tenant","ObjectName","IncludePath","ExcludePaths"\n')
 
 
 # gather server list
@@ -92,6 +98,8 @@ if len(notfoundjobs) > 0:
     print('Jobs not found: %s' % ', '.join(notfoundjobs))
     exit(1)
 
+jobsToUpdate = []
+
 for job in sorted(jobs['protectionGroups'], key=lambda job: job['name'].lower()):
     if len(jobnames) == 0 or job['name'].lower() in [j.lower() for j in jobnames]:
         updateJob = False
@@ -114,13 +122,26 @@ for job in sorted(jobs['protectionGroups'], key=lambda job: job['name'].lower())
                 pass
             if sourceType == 'kWindows':
                 includedPaths = [f['includedPath'].lower() for f in object['filePaths']]
-                if len(includedPaths) == 1 and includedPaths[0] == '/c/' and object['filePaths'][0]['excludedPaths'] is None:
+                if len(includedPaths) == 1 and includedPaths[0] == '/c/' and (object['filePaths'][0]['excludedPaths'] is None or skiphostwithexcludes is False):
+                    excludedPaths = ''
+                    if object['filePaths'][0]['excludedPaths'] is not None:
+                        excludedPaths = '; '.join(object['filePaths'][0]['excludedPaths'])
                     updateObject = True
-                    print('    updating %s' % object['name'])
+                    if commit is True:
+                        print('    updating %s' % object['name'])
+                    else:
+                        print('    would update %s' % object['name'])
                     object['filePaths'][0]['includedPath'] = '$ALL_LOCAL_DRIVES'
                     updateJob = True
-                    f.write('%s,%s,%s,%s\n' % (job['name'], tenant, object['name'], updateObject))
+                    f.write('"%s","%s","%s","%s","%s"\n' % (job['name'], tenant, object['name'], includedPaths[0], excludedPaths))
         if updateJob is True:
+            jobsToUpdate.append(job['name'])
+        if updateJob is True and commit is True:
             result = api('put', 'data-protect/protection-groups/%s' % job['id'], job, v=2)
+
+if commit is not True and len(jobsToUpdate) > 0:
+    print('\nThe following jobs would be updated:\n')
+    print('`n'.join(jobsToUpdate))
+
 f.close()
 print('\nOutput saved to %s\n' % outfile)
