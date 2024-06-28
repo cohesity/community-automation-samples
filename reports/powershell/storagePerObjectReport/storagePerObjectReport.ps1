@@ -817,7 +817,7 @@ function reportStorage(){
             }
         }
         $sumObjectsUsed += $viewStats.totalLogicalUsageBytes
-        Write-Host $(toUnits $sumObjectsUsed)
+        # Write-Host $(toUnits $sumObjectsUsed)
         $sumObjectsWritten += $jobWritten
         $sumObjectsWrittenWithResiliency += $consumption
         """$($cluster.name)"",""$origin"",""$statsAge"",""$($jobName)"",""$($view.tenantId -replace ".$")"",""$($view.storageDomainId)"",""$($view.storageDomainName)"",""kView"",""$sourceName"",""$viewName"",""$objFESize"",""$objFESize"",""$(toUnits $dataIn)"",""$(toUnits $jobWritten)"",""$(toUnits $consumption)"",""$jobReduction"",""$objGrowth"",""$numSnaps"",""$numLogs"",""$oldestBackup"",""$newestBackup"",""$lastDataLock"",""$archiveCount"",""$oldestArchive"",""$(toUnits $totalArchived)"",""$vaultStats"",""$($view.description)"",""""" | Out-File -FilePath $outfileName -Append
