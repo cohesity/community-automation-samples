@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Storage Per Object Report version 2024.06.28 for Python"""
+"""Storage Per Object Report version 2024.06.28b for Python"""
 
 # import pyhesity wrapper module
 from pyhesity import *
@@ -44,7 +44,7 @@ skipdeleted = args.skipdeleted
 debug = args.debug
 includearchives = args.includearchives
 
-scriptVersion = '2024-06-28'
+scriptVersion = '2024-06-28b'
 
 if vips is None or len(vips) == 0:
     vips = ['helios.cohesity.com']
@@ -214,8 +214,12 @@ def reportStorage():
             if jobReduction == 0:
                 jobReduction = 1
 
-            if job['environment'] == 'kVMware' or (job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume'):
-                vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=%s&jobIds=%s' % (job['environment'], v1JobId))
+            if job['environment'] in ['kVMware', 'kAD'] or (job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume'):
+                if job['environment'] == 'kAD':
+                    entityType = 'kPhysical'
+                else:
+                    entityType = job['environment']
+                vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=%s&jobIds=%s' % (entityType, v1JobId))
             # if job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume':
             #     vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=kPhysical&jobIds=%s' % v1JobId)
             # if job['environment'] == 'kVMware':
@@ -303,28 +307,45 @@ def reportStorage():
                                             objects[objId]['newestBackup'] = archivalInfo['startTimeUsecs']
                                             objects[objId]['oldestBackup'] = archivalInfo['startTimeUsecs']
                                     if objId in objects:
+                                        # print('***  %s' % objects[objId]['name'])
                                         if snap is None and 'logicalSizeBytes' in archivalInfo['stats'] and archivalInfo['stats']['logicalSizeBytes'] > objects[objId]['archiveLogical']:
                                             objects[objId]['archiveLogical'] = archivalInfo['stats']['logicalSizeBytes']
-                                        if job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume' and objects[objId]['fetb'] == 0:
+                                        if objects[objId]['fetb'] == 0 and (job['environment'] in ['kVMware', 'kAD'] or (job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume')):
+                                            # print('***  %s' % objects[objId]['name'])
                                             if vmsearch is not None and 'vms' in vmsearch and vmsearch['vms'] is not None and len(vmsearch['vms']) > 0:
                                                 vms = [vm for vm in vmsearch['vms'] if vm['vmDocument']['objectName'].lower() == object['object']['name'].lower()]
                                                 if len(vms) > 0:
-                                                    vmbytes = vms[0]['vmDocument']['objectId']['entity']['sizeInfo'][0]['value']['sourceDataSizeBytes']
+                                                    if job['environment'] == 'kVMware':
+                                                        vmbytes = vms[0]['vmDocument']['objectId']['entity']['vmwareEntity']['frontEndSizeInfo']['sizeBytes']
+                                                        tagAttrs = [a for a in vms[0]['vmDocument']['attributeMap'] if 'VMware_tag' in a['xKey']]
+                                                        if tagAttrs is not None and len(tagAttrs) > 0:
+                                                            objects[objId]['vmTags'] = ';'.join([a['xValue'] for a in tagAttrs])
+                                                    else:
+                                                        vmbytes = vms[0]['vmDocument']['objectId']['entity']['sizeInfo'][0]['value']['sourceDataSizeBytes']
+                                                    # print(vmbytes)
                                                     objects[objId]['logical'] = vmbytes
                                                     objects[objId]['fetb'] = vmbytes
-                                        if job['environment'] == 'kVMware' and objects[objId]['fetb'] == 0:
-                                            if vmsearch is not None and 'vms' in vmsearch and vmsearch['vms'] is not None and len(vmsearch['vms']) > 0:
-                                                vms = [vm for vm in vmsearch['vms'] if vm['vmDocument']['objectName'].lower() == object['object']['name'].lower()]
-                                                if len(vms) > 0:
-                                                    vmbytes = vms[0]['vmDocument']['objectId']['entity']['vmwareEntity']['frontEndSizeInfo']['sizeBytes']
-                                                    objects[objId]['logical'] = vmbytes
-                                                    objects[objId]['fetb'] = vmbytes
-                                                    tagAttrs = [a for a in vms[0]['vmDocument']['attributeMap'] if 'VMware_tag' in a['xKey']]
-                                                    if tagAttrs is not None and len(tagAttrs) > 0:
-                                                        objects[objId]['vmTags'] = ';'.join([a['xValue'] for a in tagAttrs])
+
+                                        # if job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume' and objects[objId]['fetb'] == 0:
+                                        #     if vmsearch is not None and 'vms' in vmsearch and vmsearch['vms'] is not None and len(vmsearch['vms']) > 0:
+                                        #         vms = [vm for vm in vmsearch['vms'] if vm['vmDocument']['objectName'].lower() == object['object']['name'].lower()]
+                                        #         if len(vms) > 0:
+                                        #             vmbytes = vms[0]['vmDocument']['objectId']['entity']['sizeInfo'][0]['value']['sourceDataSizeBytes']
+                                        #             objects[objId]['logical'] = vmbytes
+                                        #             objects[objId]['fetb'] = vmbytes
+                                        # if job['environment'] == 'kVMware' and objects[objId]['fetb'] == 0:
+                                        #     if vmsearch is not None and 'vms' in vmsearch and vmsearch['vms'] is not None and len(vmsearch['vms']) > 0:
+                                        #         vms = [vm for vm in vmsearch['vms'] if vm['vmDocument']['objectName'].lower() == object['object']['name'].lower()]
+                                        #         if len(vms) > 0:
+                                        #             vmbytes = vms[0]['vmDocument']['objectId']['entity']['vmwareEntity']['frontEndSizeInfo']['sizeBytes']
+                                        #             objects[objId]['logical'] = vmbytes
+                                        #             objects[objId]['fetb'] = vmbytes
+                                        #             tagAttrs = [a for a in vms[0]['vmDocument']['attributeMap'] if 'VMware_tag' in a['xKey']]
+                                        #             if tagAttrs is not None and len(tagAttrs) > 0:
+                                        #                 objects[objId]['vmTags'] = ';'.join([a['xValue'] for a in tagAttrs])
                                         if snap is not None and 'logicalSizeBytes' in snap['snapshotInfo']['stats'] and snap['snapshotInfo']['stats']['logicalSizeBytes'] > objects[objId]['logical']:
                                             # if job['environment'] != 'kVMware' or objects[objId]['logical'] == 0:
-                                            if objects[objId]['logical'] == 0 or (job['environment'] != 'kVMware' and job['environment'] != 'kPhysical' and job['physicalParams']['protectionType'] != 'kVolume'):
+                                            if objects[objId]['logical'] == 0 or (job['environment'] not in ['kVMware', 'kAD'] and job['environment'] != 'kPhysical' and job['physicalParams']['protectionType'] != 'kVolume'):
                                                 objects[objId]['logical'] = snap['snapshotInfo']['stats']['logicalSizeBytes']
                                         if snap is not None and job['environment'] == 'kVMware' and snap['snapshotInfo']['stats']['logicalSizeBytes'] < objects[objId]['logical'] and snap['snapshotInfo']['stats']['logicalSizeBytes'] > 0:
                                             objects[objId]['logical'] = snap['snapshotInfo']['stats']['logicalSizeBytes']
@@ -434,7 +455,7 @@ def reportStorage():
                                                 jobReduction = round(jobFESize / cloudJob['storageConsumed'], 1)
                     totalArchived = round(totalArchived / multiplier, 1)
                     alloc = objFESize
-                    if job['environment'] == 'kVMware' or (job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume'):
+                    if job['environment'] in ['kVMware', 'kAD'] or (job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume'):
                         alloc = round(thisObject['alloc'] / multiplier, 1)
                     sumObjectsUsed += round(thisObject['logical'] / multiplier, 1)
                     # print(sumObjectsUsed)

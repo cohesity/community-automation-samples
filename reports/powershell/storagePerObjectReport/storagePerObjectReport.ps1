@@ -1,4 +1,4 @@
-# version: 2024-06-28
+# version: 2024-06-28b
 
 # process commandline arguments
 [CmdletBinding()]
@@ -24,7 +24,7 @@ param (
     [Parameter()][string]$outfileName
 )
 
-$scriptversion = '2024-06-28'
+$scriptversion = '2024-06-28b'
 
 # source the cohesity-api helper code
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
