@@ -1,5 +1,10 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-06-28
+
+* [storagePerObjectReport.py](https://github.com/cohesity/community-automation-samples/tree/main/reports/python/storagePerObjectReport) [`Update`] improved used size for physical volume based servers and Active Directory backups
+* [storagePerObjectReport.ps1](https://github.com/cohesity/community-automation-samples/tree/main/reports/powershell/storagePerObjectReport) [`Update`] improved used size for Active Directory backups
+
 ## 2024-06-27
 
 * [storagePerObjectReport.ps1](https://github.com/cohesity/community-automation-samples/tree/main/reports/powershell/storagePerObjectReport) [`Update`] improved used size for physical volume based servers
