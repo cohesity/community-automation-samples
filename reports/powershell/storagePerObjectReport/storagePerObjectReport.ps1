@@ -180,13 +180,14 @@ function reportStorage(){
         if($job.isActive -ne $True){
             $origin = 'replica'
         }
-        if($job.environment -eq 'kVMware' -or ($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume')){
-            $vmsearch = api get "/searchvms?allUnderHierarchy=true&entityTypes=$($job.environment)&jobIds=$($v1JobId)&vmName=$($job.name)"
+        if($job.environment -in @('kVMware', 'kAD') -or ($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume')){
+            if($job.environment -eq 'kAD'){
+                $entityType = 'kPhysical'
+            }else{
+                $entityType = $job.environment
+            }
+            $vmsearch = api get "/searchvms?allUnderHierarchy=true&entityTypes=$($entityType)&jobIds=$($v1JobId)&vmName=$($job.name)"
         }
-        # if($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume'){
-        #     $vmsearch = api get "/searchvms?allUnderHierarchy=true&entityTypes=kPhysical&jobIds=$($v1JobId)&vmName=$($job.name)"
-        # }
-        # $v1JobId = ($job.id -split ':')[2]
         if($job.environment -notin @('kView')){
             output "  $($job.name)"
             $tenant = $job.permissions.name
@@ -353,38 +354,62 @@ function reportStorage(){
                                     $objects[$objId]['alloc'] = $snap.snapshotInfo.stats.logicalSizeBytes
                                 }
                             }
-                            if($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume' -and $objects[$objId]['fetb'] -eq 0){
+                            if($objId -in $objects.Keys -and $objects[$objId]['fetb'] -eq 0 -and ($job.environment -in @('kVMware', 'kAD') -or ($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume'))){
                                 if($dbg){
                                     Write-Host "    getting fetb"
                                 }
                                 $vms = $vmsearch.vms | Where-Object {$_.vmDocument.objectName -eq $object.object.name}
+                                
                                 if($vms){
-                                    $vmbytes = $vms[0].vmDocument.objectId.entity.sizeInfo.value.sourceDataSizeBytes
+                                    if($job.environment -eq 'kVMware'){
+                                        $vmbytes = $vms[0].vmDocument.objectId.entity.vmwareEntity.frontEndSizeInfo.sizeBytes
+                                    }else{
+                                        $vmbytes = $vms[0].vmDocument.objectId.entity.sizeInfo.value.sourceDataSizeBytes
+                                    }
                                     if($vmbytes -gt 0){
                                         $objects[$objId]['logical'] = $vmbytes
                                         $objects[$objId]['fetb'] = $vmbytes
                                     }
-                                }
-                            }
-                            if($job.environment -eq 'kVMware' -and $objects[$objId]['fetb'] -eq 0){
-                                if($dbg){
-                                    Write-Host "    getting fetb"
-                                }
-                                $vms = $vmsearch.vms | Where-Object {$_.vmDocument.objectName -eq $object.object.name}
-                                if($vms){
-                                    $vmbytes = $vms[0].vmDocument.objectId.entity.vmwareEntity.frontEndSizeInfo.sizeBytes
-                                    if($vmbytes -gt 0){
-                                        $objects[$objId]['logical'] = $vmbytes
-                                        $objects[$objId]['fetb'] = $vmbytes
-                                    }
-                                    $tagAttrs = $vms[0].vmDocument.attributeMap | Where-Object xKey -match 'VMware_tag'
-                                    if($tagAttrs){
-                                        $objects[$objId]['vmTags'] = $tagAttrs.xValue -join ';'
+                                    if($job.environment -eq 'kVMware'){
+                                        $tagAttrs = $vms[0].vmDocument.attributeMap | Where-Object xKey -match 'VMware_tag'
+                                        if($tagAttrs){
+                                            $objects[$objId]['vmTags'] = $tagAttrs.xValue -join ';'
+                                        }
                                     }
                                 }
                             }
+                            # if($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume' -and $objects[$objId]['fetb'] -eq 0){
+                            #     if($dbg){
+                            #         Write-Host "    getting fetb"
+                            #     }
+                            #     $vms = $vmsearch.vms | Where-Object {$_.vmDocument.objectName -eq $object.object.name}
+                            #     if($vms){
+                            #         $vmbytes = $vms[0].vmDocument.objectId.entity.sizeInfo.value.sourceDataSizeBytes
+                            #         if($vmbytes -gt 0){
+                            #             $objects[$objId]['logical'] = $vmbytes
+                            #             $objects[$objId]['fetb'] = $vmbytes
+                            #         }
+                            #     }
+                            # }
+                            # if($job.environment -eq 'kVMware' -and $objects[$objId]['fetb'] -eq 0){
+                            #     if($dbg){
+                            #         Write-Host "    getting fetb"
+                            #     }
+                            #     $vms = $vmsearch.vms | Where-Object {$_.vmDocument.objectName -eq $object.object.name}
+                            #     if($vms){
+                            #         $vmbytes = $vms[0].vmDocument.objectId.entity.vmwareEntity.frontEndSizeInfo.sizeBytes
+                            #         if($vmbytes -gt 0){
+                            #             $objects[$objId]['logical'] = $vmbytes
+                            #             $objects[$objId]['fetb'] = $vmbytes
+                            #         }
+                            #         $tagAttrs = $vms[0].vmDocument.attributeMap | Where-Object xKey -match 'VMware_tag'
+                            #         if($tagAttrs){
+                            #             $objects[$objId]['vmTags'] = $tagAttrs.xValue -join ';'
+                            #         }
+                            #     }
+                            # }
                             if($snap -and $objId -in $objects.Keys -and $snap.snapshotInfo.stats.PSObject.Properties['logicalSizeBytes'] -and $snap.snapshotInfo.stats.logicalSizeBytes -gt $objects[$objId]['logical']){
-                                if($objects[$objId]['logical'] -eq 0 -or ($job.environment -ne 'kVMware' -and ($job.environment -ne 'kPhysical' -and $job.physicalParams.protectionType -ne 'kVolume'))){
+                                if($objects[$objId]['logical'] -eq 0 -or ($job.environment -notin @('kVMware', 'kAD') -and ($job.environment -ne 'kPhysical' -and $job.physicalParams.protectionType -ne 'kVolume'))){
                                     $objects[$objId]['logical'] = $snap.snapshotInfo.stats.logicalSizeBytes
                                 }
                             }
@@ -592,7 +617,7 @@ function reportStorage(){
                     $fqObjectName = "$($sourceName)/$($thisObject['name'])" -replace '//', '/'
                 }
                 $alloc = toUnits $thisObject['logical']
-                if($job.environment -eq 'kVMware' -or ($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume')){
+                if($job.environment -in @('kVMware', 'kAD') -or ($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume')){
                     $alloc = toUnits $thisObject['alloc']
                 }
                 $sumObjectsUsed += $thisObject['logical']
