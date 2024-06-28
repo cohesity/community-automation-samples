@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Storage Per Object Report version 2024.06.27 for Python"""
+"""Storage Per Object Report version 2024.06.28 for Python"""
 
 # import pyhesity wrapper module
 from pyhesity import *
@@ -44,7 +44,7 @@ skipdeleted = args.skipdeleted
 debug = args.debug
 includearchives = args.includearchives
 
-scriptVersion = '2024-06-27'
+scriptVersion = '2024-06-28'
 
 if vips is None or len(vips) == 0:
     vips = ['helios.cohesity.com']
@@ -214,8 +214,12 @@ def reportStorage():
             if jobReduction == 0:
                 jobReduction = 1
 
-            if job['environment'] == 'kVMware':
-                vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=kVMware&jobIds=%s' % job['id'].split(':')[2])
+            if job['environment'] == 'kVMware' or (job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume'):
+                vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=%s&jobIds=%s' % (job['environment'], v1JobId))
+            # if job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume':
+            #     vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=kPhysical&jobIds=%s' % v1JobId)
+            # if job['environment'] == 'kVMware':
+            #     vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=kVMware&jobIds=%s' % v1JobId)
             # get protection runs in retention
             archiveCount = 0
             oldestArchive = '-'
@@ -264,6 +268,7 @@ def reportStorage():
                                         objects[objId]['name'] = object['object']['name']
                                         objects[objId]['logical'] = 0
                                         objects[objId]['alloc'] = 0
+                                        objects[objId]['fetb'] = 0
                                         objects[objId]['archiveLogical'] = 0
                                         objects[objId]['bytesRead'] = 0
                                         objects[objId]['archiveBytesRead'] = 0
@@ -300,18 +305,26 @@ def reportStorage():
                                     if objId in objects:
                                         if snap is None and 'logicalSizeBytes' in archivalInfo['stats'] and archivalInfo['stats']['logicalSizeBytes'] > objects[objId]['archiveLogical']:
                                             objects[objId]['archiveLogical'] = archivalInfo['stats']['logicalSizeBytes']
-                                        if job['environment'] == 'kVMware':
-                                            # vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=kVMware&jobIds=%s&vmName=%s' % (job['id'].split(':')[2], object['object']['name']))
+                                        if job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume' and objects[objId]['fetb'] == 0:
+                                            if vmsearch is not None and 'vms' in vmsearch and vmsearch['vms'] is not None and len(vmsearch['vms']) > 0:
+                                                vms = [vm for vm in vmsearch['vms'] if vm['vmDocument']['objectName'].lower() == object['object']['name'].lower()]
+                                                if len(vms) > 0:
+                                                    vmbytes = vms[0]['vmDocument']['objectId']['entity']['sizeInfo'][0]['value']['sourceDataSizeBytes']
+                                                    objects[objId]['logical'] = vmbytes
+                                                    objects[objId]['fetb'] = vmbytes
+                                        if job['environment'] == 'kVMware' and objects[objId]['fetb'] == 0:
                                             if vmsearch is not None and 'vms' in vmsearch and vmsearch['vms'] is not None and len(vmsearch['vms']) > 0:
                                                 vms = [vm for vm in vmsearch['vms'] if vm['vmDocument']['objectName'].lower() == object['object']['name'].lower()]
                                                 if len(vms) > 0:
                                                     vmbytes = vms[0]['vmDocument']['objectId']['entity']['vmwareEntity']['frontEndSizeInfo']['sizeBytes']
                                                     objects[objId]['logical'] = vmbytes
+                                                    objects[objId]['fetb'] = vmbytes
                                                     tagAttrs = [a for a in vms[0]['vmDocument']['attributeMap'] if 'VMware_tag' in a['xKey']]
                                                     if tagAttrs is not None and len(tagAttrs) > 0:
                                                         objects[objId]['vmTags'] = ';'.join([a['xValue'] for a in tagAttrs])
                                         if snap is not None and 'logicalSizeBytes' in snap['snapshotInfo']['stats'] and snap['snapshotInfo']['stats']['logicalSizeBytes'] > objects[objId]['logical']:
-                                            if job['environment'] != 'kVMware' or objects[objId]['logical'] == 0:
+                                            # if job['environment'] != 'kVMware' or objects[objId]['logical'] == 0:
+                                            if objects[objId]['logical'] == 0 or (job['environment'] != 'kVMware' and job['environment'] != 'kPhysical' and job['physicalParams']['protectionType'] != 'kVolume'):
                                                 objects[objId]['logical'] = snap['snapshotInfo']['stats']['logicalSizeBytes']
                                         if snap is not None and job['environment'] == 'kVMware' and snap['snapshotInfo']['stats']['logicalSizeBytes'] < objects[objId]['logical'] and snap['snapshotInfo']['stats']['logicalSizeBytes'] > 0:
                                             objects[objId]['logical'] = snap['snapshotInfo']['stats']['logicalSizeBytes']
@@ -421,9 +434,10 @@ def reportStorage():
                                                 jobReduction = round(jobFESize / cloudJob['storageConsumed'], 1)
                     totalArchived = round(totalArchived / multiplier, 1)
                     alloc = objFESize
-                    if job['environment'] == 'kVMware':
+                    if job['environment'] == 'kVMware' or (job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume'):
                         alloc = round(thisObject['alloc'] / multiplier, 1)
                     sumObjectsUsed += round(thisObject['logical'] / multiplier, 1)
+                    # print(sumObjectsUsed)
                     sumObjectsWritten += objWritten
                     sumObjectsWrittenWithResiliency += objWrittenWithResiliency
                     newestBackup = '-'
@@ -441,10 +455,6 @@ def reportStorage():
                     csv.write('"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' % (cluster['name'], origin, statsAge, job['name'], tenant, sdid, sdname, job['environment'][1:], sourceName, thisObject['name'], alloc, objFESize, objDataIn, objWritten, objWrittenWithResiliency, jobReduction, objGrowth, thisObject['numSnaps'], thisObject['numLogs'], oldestBackup, newestBackup, thisObject['lastDataLock'], archiveCount, oldestArchive, totalArchived, vaultStats, jobDescription, thisObject['vmTags']))
         else:
             stats = viewRunStats
-            # if job['isActive'] is True:
-            #     stats = localStats
-            # else:
-            #     stats = replicaStats
             if 'statsList' in stats and stats['statsList'] is not None:
                 thisStat = [s for s in stats['statsList'] if s['id'] == int(v1JobId)]
             endUsecs = nowUsecs
@@ -573,6 +583,8 @@ def reportStorage():
             tenant = ''
             if 'tenantId' in view and view['tenantId'] is not None:
                 tenant = view['tenantId'][:-1]
+            objFESize = round(viewStats['totalLogicalUsageBytes'] / multiplier, 1)
+            sumObjectsUsed += objFESize
             dataIn = 0
             dataInAfterDedup = 0
             jobWritten = 0

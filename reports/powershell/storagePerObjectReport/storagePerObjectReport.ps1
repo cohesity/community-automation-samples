@@ -1,4 +1,4 @@
-# version: 2024-06-27
+# version: 2024-06-28
 
 # process commandline arguments
 [CmdletBinding()]
@@ -24,7 +24,7 @@ param (
     [Parameter()][string]$outfileName
 )
 
-$scriptversion = '2024-06-27'
+$scriptversion = '2024-06-28'
 
 # source the cohesity-api helper code
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
@@ -174,18 +174,19 @@ function reportStorage(){
     $viewJobAltStats = @{}
 
     foreach($job in $jobs.protectionGroups | Sort-Object -Property name){
+        $v1JobId = ($job.id -split ':')[2]
         $statsAge = '-'
         $origin = 'local'
         if($job.isActive -ne $True){
             $origin = 'replica'
         }
-        if($job.environment -eq 'kVMware'){
-            $vmsearch = api get "/searchvms?allUnderHierarchy=true&entityTypes=kVMware&jobIds=$(($job.id -split ':')[2])&vmName=$($job.name)"
+        if($job.environment -eq 'kVMware' -or ($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume')){
+            $vmsearch = api get "/searchvms?allUnderHierarchy=true&entityTypes=$($job.environment)&jobIds=$($v1JobId)&vmName=$($job.name)"
         }
-        if($job.environment -eq 'kPhysical'){
-            $vmsearch = api get "/searchvms?allUnderHierarchy=true&entityTypes=kPhysical&jobIds=$(($job.id -split ':')[2])&vmName=$($job.name)"
-        }
-        $v1JobId = ($job.id -split ':')[2]
+        # if($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume'){
+        #     $vmsearch = api get "/searchvms?allUnderHierarchy=true&entityTypes=kPhysical&jobIds=$($v1JobId)&vmName=$($job.name)"
+        # }
+        # $v1JobId = ($job.id -split ':')[2]
         if($job.environment -notin @('kView')){
             output "  $($job.name)"
             $tenant = $job.permissions.name
@@ -595,6 +596,7 @@ function reportStorage(){
                     $alloc = toUnits $thisObject['alloc']
                 }
                 $sumObjectsUsed += $thisObject['logical']
+                # Write-Host $(toUnits $sumObjectsUsed)
                 $sumObjectsWritten += $objWritten
                 $sumObjectsWrittenWithResiliency += $objWrittenWithResiliency
                 if($alloc -eq 0){
@@ -815,6 +817,7 @@ function reportStorage(){
             }
         }
         $sumObjectsUsed += $viewStats.totalLogicalUsageBytes
+        Write-Host $(toUnits $sumObjectsUsed)
         $sumObjectsWritten += $jobWritten
         $sumObjectsWrittenWithResiliency += $consumption
         """$($cluster.name)"",""$origin"",""$statsAge"",""$($jobName)"",""$($view.tenantId -replace ".$")"",""$($view.storageDomainId)"",""$($view.storageDomainName)"",""kView"",""$sourceName"",""$viewName"",""$objFESize"",""$objFESize"",""$(toUnits $dataIn)"",""$(toUnits $jobWritten)"",""$(toUnits $consumption)"",""$jobReduction"",""$objGrowth"",""$numSnaps"",""$numLogs"",""$oldestBackup"",""$newestBackup"",""$lastDataLock"",""$archiveCount"",""$oldestArchive"",""$(toUnits $totalArchived)"",""$vaultStats"",""$($view.description)"",""""" | Out-File -FilePath $outfileName -Append
