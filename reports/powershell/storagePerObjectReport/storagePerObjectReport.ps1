@@ -101,6 +101,7 @@ function reportStorage(){
             }
             output "  getting external target stats..."
             $cloudStats = api get $cloudStatURL
+            $cloudStats | ConvertTo-Json -Depth 99 | Out-File "$($cluster.name)-cloudStats.json"
         }
     }
     
