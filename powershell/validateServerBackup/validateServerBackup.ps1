@@ -172,7 +172,7 @@ $html += '</span>
 </tr>'
 
 $volumeTypes = @(1, 6)
-$finishedStates = @('kCanceled', 'kSuccess', 'kFailure')
+$finishedStates = @('kCanceled', 'kSuccess', 'kFailure', 'kWarning')
 
 foreach($object in $objects){
     $object = [string]$object
