@@ -856,7 +856,10 @@ function reportStorage(){
     $bookKeeperBytes = $bookKeeperStats.dataPointVec[-1].data.int64Value
     $clusterUsedBytes = $cluster.stats.usagePerfStats.totalPhysicalUsageBytes
     $unaccounted = $clusterUsedBytes - $bookKeeperBytes
-    $unaccountedPercent = [math]::Round(100 * ($unaccounted / $clusterUsedBytes), 1)
+    $unaccountedPercent = 0
+    if($clusterUsedBytes -gt 0){
+        $unaccountedPercent = [math]::Round(100 * ($unaccounted / $clusterUsedBytes), 1)
+    }
     $storageVarianceFactor = [math]::Round($clusterUsedBytes / $sumObjectsWrittenWithResiliency, 4)
     """$($cluster.name)"",""$clusterUsed"",""$(toUnits $bookKeeperBytes)"",""$(toUnits $unaccounted)"",""$unaccountedPercent"",""$clusterReduction"",""$(toUnits $sumObjectsUsed)"",""$(toUnits $sumObjectsWritten)"",""$(toUnits $sumObjectsWrittenWithResiliency)"",""$storageVarianceFactor"",""$scriptVersion""" | Out-File -FilePath $clusterStatsFileName -Append
 }
