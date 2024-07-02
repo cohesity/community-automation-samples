@@ -496,9 +496,18 @@ def reportStorage():
                                 if 'localSnapshotInfo' in object:
                                     snap = object['localSnapshotInfo']
                                     runInfo = run['localBackupInfo']
-                                else:
+                                elif 'orignialSnapshotInfo' in object:
                                     snap = object['originalBackupInfo']
                                     runInfo = run['originalBackupInfo']
+                                else:
+                                    # CAD
+                                    snap = None
+                                    if 'archivalInfo' in object:
+                                        try:
+                                            archivalInfo = object['archivalInfo']['archivalTargetResults'][0]
+                                            runInfo = run['archivalInfo']['archivalTargetResults'][0]
+                                        except Exception:
+                                            archivalInfo = None
                                 if runInfo is not None and lastDataLock == '-' and 'dataLockConstraints' in runInfo and 'expiryTimeUsecs' in runInfo['dataLockConstraints'] and runInfo['dataLockConstraints']['expiryTimeUsecs'] > 0:
                                     if runInfo['dataLockConstraints']['expiryTimeUsecs'] > nowUsecs:
                                         lastDataLock = usecsToDate(runInfo['dataLockConstraints']['expiryTimeUsecs'])
@@ -509,10 +518,14 @@ def reportStorage():
                                     viewHistory[object['object']['name']]['numLogs'] = 0
                                     viewHistory[object['object']['name']]['archiveCount'] = 0
                                     viewHistory[object['object']['name']]['oldestArchive'] = '-'
-                                    viewHistory[object['object']['name']]['newestBackup'] = usecsToDate(snap['snapshotInfo']['startTimeUsecs'])
+                                    viewHistory[object['object']['name']]['newestBackup'] = ''
+                                    viewHistory[object['object']['name']]['oldestBackup'] = ''
+                                    if snap is not None:
+                                        viewHistory[object['object']['name']]['newestBackup'] = usecsToDate(snap['snapshotInfo']['startTimeUsecs'])
+                                        viewHistory[object['object']['name']]['oldestBackup'] = usecsToDate(snap['snapshotInfo']['startTimeUsecs'])
+                                if snap is not None:
                                     viewHistory[object['object']['name']]['oldestBackup'] = usecsToDate(snap['snapshotInfo']['startTimeUsecs'])
-                                viewHistory[object['object']['name']]['oldestBackup'] = usecsToDate(snap['snapshotInfo']['startTimeUsecs'])
-                                viewHistory[object['object']['name']]['numSnaps'] += 1
+                                    viewHistory[object['object']['name']]['numSnaps'] += 1
                                 viewHistory[object['object']['name']]['lastDataLock'] = lastDataLock
                     if 'archivalInfo' in run and run['archivalInfo'] is not None and 'archivalTargetResults' in run['archivalInfo'] and run['archivalInfo']['archivalTargetResults'] is not None and len(run['archivalInfo']['archivalTargetResults']) > 0:
                         for archiveResult in run['archivalInfo']['archivalTargetResults']:
@@ -613,14 +626,19 @@ def reportStorage():
             objWeight = 1
             statsAge = '-'
             objGrowth = 0
-            if jobName != '-' and jobName in viewJobStats:
+            if jobName != '-' and jobName in viewJobStats and len( viewJobStats[jobName]) > 0:
                 objWeight = viewStats['storageConsumedBytes'] / viewJobAltStats[jobName]["totalConsumed"]
                 # display(viewJobStats[jobName][0]['stats'])
-                dataIn = viewJobStats[jobName][0]['stats']['dataInBytes'] * objWeight
-                dataInAfterDedup = viewJobStats[jobName][0]['stats']['dataInBytesAfterDedup'] * objWeight
-                jobWritten = viewJobStats[jobName][0]['stats']['dataWrittenBytes'] * objWeight
-                consumption =  viewJobStats[jobName][0]['stats']['localTotalPhysicalUsageBytes'] * objWeight
-                objGrowth = round(objWeight * (viewJobStats[jobName][0]['stats']['storageConsumedBytes'] - viewJobStats[jobName][0]['stats']['storageConsumedBytesPrev']) / multiplier, 1)
+                if 'dataInBytes' in viewJobStats[jobName][0]['stats']:
+                    dataIn = viewJobStats[jobName][0]['stats']['dataInBytes'] * objWeight
+                if 'dataInBytesAfterDedup' in viewJobStats[jobName][0]['stats']:
+                    dataInAfterDedup = viewJobStats[jobName][0]['stats']['dataInBytesAfterDedup'] * objWeight
+                if 'dataWrittenBytes' in viewJobStats[jobName][0]['stats']:
+                    jobWritten = viewJobStats[jobName][0]['stats']['dataWrittenBytes'] * objWeight
+                if 'localTotalPhysicalUsageBytes' in viewJobStats[jobName][0]['stats']:
+                    consumption =  viewJobStats[jobName][0]['stats']['localTotalPhysicalUsageBytes'] * objWeight
+                if 'storageConsumedBytes' in viewJobStats[jobName][0]['stats']:
+                    objGrowth = round(objWeight * (viewJobStats[jobName][0]['stats']['storageConsumedBytes'] - viewJobStats[jobName][0]['stats']['storageConsumedBytesPrev']) / multiplier, 1)
             else:
                 dataIn = viewStats['dataInBytes']
                 dataInAfterDedup = viewStats['dataInBytesAfterDedup']
@@ -701,7 +719,9 @@ def reportStorage():
     unaccountedPercent = 0
     if clusterUsedBytes > 0:
         unaccountedPercent = round(100 * (unaccounted / clusterUsedBytes), 1)
-    storageVarianceFactor = round(clusterUsed / sumObjectsWrittenWithResiliency, 4)
+    storageVarianceFactor = 1
+    if sumObjectsWrittenWithResiliency > 0:
+        storageVarianceFactor = round(clusterUsed / sumObjectsWrittenWithResiliency, 4)
     clusterStats.write('"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' % (cluster['name'], clusterUsed, round(bookKeeperBytes / multiplier, 1), round(unaccounted / multiplier, 1), unaccountedPercent, clusterReduction, sumObjectsUsed, sumObjectsWritten, sumObjectsWrittenWithResiliency, storageVarianceFactor, scriptVersion))
 
 

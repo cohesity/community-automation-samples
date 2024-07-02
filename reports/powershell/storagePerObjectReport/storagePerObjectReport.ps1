@@ -553,7 +553,10 @@ function reportStorage(){
                 if($thisObject['archiveLogical'] -gt 0){
                     $objFESize = toUnits $thisObject['archiveLogical']
                 }
-                $objGrowth = toUnits ($thisObject['growth'] / $jobReduction)
+                if($jobReduction -gt 0){
+                    $objGrowth = toUnits ($thisObject['growth'] / $jobReduction)
+                }
+                
                 if($jobObjGrowth -ne 0){
                     $objGrowth = toUnits ($jobGrowth * $thisObject['growth'] / $jobObjGrowth)
                 }
@@ -566,15 +569,22 @@ function reportStorage(){
                 }else{
                     $objWeight = 0
                 }
+                # Write-Host $objWeight
+                # Write-Host $jobWritten
+                # Write-Host $jobReduction
                 if($jobWritten -gt 0){
                     $objWritten = $objWeight * $jobWritten
-                }else{
+                }elseif($jobReduction -gt 0){
                     $objWritten = [math]::Round($objFESize / $jobReduction, 1)
+                }else{
+                    $objWritten = 0
                 }
                 if($dataIn -gt 0){
                     $objDataIn = [math]::Round($objWeight * $dataIn, 1)
-                }else{
+                }elseif($jobReduction -gt 0){
                     $objDataIn = [math]::Round($objFESize / $jobReduction, 1)
+                }else{
+                    $objDataIn = 0
                 }
                 $objWrittenWithResiliency = $objWritten * $resiliencyFactor
                 $sourceName = ''
@@ -627,7 +637,11 @@ function reportStorage(){
                 if($alloc -eq 0){
                     $alloc = $objFESize
                 }
-                """$($cluster.name)"",""$origin"",""$statsAge"",""$($job.name)"",""$tenant"",""$($job.storageDomainId)"",""$sdName"",""$($job.environment)"",""$sourceName"",""$($thisObject['name'])"",""$alloc"",""$objFESize"",""$(toUnits $objDataIn)"",""$(toUnits $objWritten)"",""$(toUnits $objWrittenWithResiliency)"",""$jobReduction"",""$objGrowth"",""$($thisObject['numSnaps'])"",""$($thisObject['numLogs'])"",""$(usecsToDate $thisObject['oldestBackup'])"",""$(usecsToDate $thisObject['newestBackup'])"",""$($thisObject['lastDataLock'])"",""$archiveCount"",""$oldestArchive"",""$(toUnits $totalArchived)"",""$vaultStats"",""$($job.description)"",""$($thisObject['vmTags'])""" | Out-File -FilePath $outfileName -Append
+                $oldestBackup = '-'
+                # if($thisObject['oldestBackup'] -gt 0){
+                #     $oldestBackup = usecsToDate $thisObject['oldestBackup']
+                # }
+                """$($cluster.name)"",""$origin"",""$statsAge"",""$($job.name)"",""$tenant"",""$($job.storageDomainId)"",""$sdName"",""$($job.environment)"",""$sourceName"",""$($thisObject['name'])"",""$alloc"",""$objFESize"",""$(toUnits $objDataIn)"",""$(toUnits $objWritten)"",""$(toUnits $objWrittenWithResiliency)"",""$jobReduction"",""$objGrowth"",""$($thisObject['numSnaps'])"",""$($thisObject['numLogs'])"",""$oldestBackup"",""$(usecsToDate $thisObject['newestBackup'])"",""$($thisObject['lastDataLock'])"",""$archiveCount"",""$oldestArchive"",""$(toUnits $totalArchived)"",""$vaultStats"",""$($job.description)"",""$($thisObject['vmTags'])""" | Out-File -FilePath $outfileName -Append
                 if($secondFormat){
                     """$($cluster.name)"",""$monthString"",""$fqObjectName"",""$($job.description)"",""$(toUnits $objWrittenWithResiliency)""" | Out-File -FilePath $outfile2 -Append
                 }
@@ -673,14 +687,18 @@ function reportStorage(){
                                 $viewHistory[$object.object.name]['stats'] = $thisStat
                                 $viewHistory[$object.object.name]['numSnaps'] = 0
                                 $viewHistory[$object.object.name]['numLogs'] = 0
-                                $viewHistory[$object.object.name]['newestBackup'] = usecsToDate $snap.snapshotInfo.startTimeUsecs
-                                $viewHistory[$object.object.name]['oldestBackup'] = usecsToDate $snap.snapshotInfo.startTimeUsecs
+                                if($snap){
+                                    $viewHistory[$object.object.name]['newestBackup'] = usecsToDate $snap.snapshotInfo.startTimeUsecs
+                                    $viewHistory[$object.object.name]['oldestBackup'] = usecsToDate $snap.snapshotInfo.startTimeUsecs
+                                }
                                 $viewHistory[$object.object.name]['archiveCount'] = 0
                                 $viewHistory[$object.object.name]['oldestArchive'] = '-'
                                 $viewHistory[$object.object.name]['lastDataLock'] = $lastDataLock
                             }
-                            $viewHistory[$object.object.name]['oldestBackup'] = usecsToDate $snap.snapshotInfo.startTimeUsecs
-                            $viewHistory[$object.object.name]['numSnaps'] += 1
+                            if($snap){
+                                $viewHistory[$object.object.name]['oldestBackup'] = usecsToDate $snap.snapshotInfo.startTimeUsecs
+                                $viewHistory[$object.object.name]['numSnaps'] += 1
+                            }
                             $viewHistory[$object.object.name]['lastDataLock'] = $lastDataLock
                         }
                     }
