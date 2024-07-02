@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Storage Per Object Report version 2024.06.28b for Python"""
+"""Storage Per Object Report version 2024.07.02 for Python"""
 
 # import pyhesity wrapper module
 from pyhesity import *
@@ -44,7 +44,7 @@ skipdeleted = args.skipdeleted
 debug = args.debug
 includearchives = args.includearchives
 
-scriptVersion = '2024-06-28b'
+scriptVersion = '2024-07-02'
 
 if vips is None or len(vips) == 0:
     vips = ['helios.cohesity.com']
@@ -698,7 +698,9 @@ def reportStorage():
     bookKeeperBytes = bookKeeperStats['dataPointVec'][-1]['data']['int64Value']
     clusterUsedBytes = cluster['stats']['usagePerfStats']['totalPhysicalUsageBytes']
     unaccounted = clusterUsedBytes - bookKeeperBytes
-    unaccountedPercent = round(100 * (unaccounted / clusterUsedBytes), 1)
+    unaccountedPercent = 0
+    if clusterUsedBytes > 0:
+        unaccountedPercent = round(100 * (unaccounted / clusterUsedBytes), 1)
     storageVarianceFactor = round(clusterUsed / sumObjectsWrittenWithResiliency, 4)
     clusterStats.write('"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' % (cluster['name'], clusterUsed, round(bookKeeperBytes / multiplier, 1), round(unaccounted / multiplier, 1), unaccountedPercent, clusterReduction, sumObjectsUsed, sumObjectsWritten, sumObjectsWrittenWithResiliency, storageVarianceFactor, scriptVersion))
 
