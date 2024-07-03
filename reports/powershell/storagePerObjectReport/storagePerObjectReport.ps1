@@ -1,4 +1,4 @@
-# version: 2024-07-02
+# version: 2024-07-03
 
 # process commandline arguments
 [CmdletBinding()]
@@ -24,7 +24,7 @@ param (
     [Parameter()][string]$outfileName
 )
 
-$scriptversion = '2024-07-o2'
+$scriptversion = '2024-07-03'
 
 # source the cohesity-api helper code
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
@@ -74,6 +74,43 @@ if($secondFormat){
     """Cluster Name"",""Month"",""Object Name"",""Description"",""$unit Written plus Resiliency""" | Out-File -FilePath $outfile2
 }
 
+function getCloudStats(){
+    $cloudStats = $null
+    $vaults = api get vaults?includeFortKnoxVault=true
+    if($vaults){
+        $nowMsecs = [Int64]((dateToUsecs) / 1000)
+        $cloudStart = $cluster.createdTimeMsecs
+        $cloudStatURL = "reports/dataTransferToVaults?endTimeMsecs=$nowMsecs&startTimeMsecs=$cloudStart"
+        foreach($vault in $vaults){
+            $cloudStatURL += "&vaultIds=$($vault.id)"
+        }
+        output "  getting external target stats..."
+        $cloudStats = api get $cloudStatURL
+    }
+    return $cloudStats
+}
+
+function getConsumerStats($consumerType, $growthDays){
+    $msecsBeforeCurrentTimeToCompare = $growthDays * 24 * 60 * 60 * 1000
+    $cookie = ''
+    $consumerStats = @{'statsList'= @()}
+    while($True){
+        $theseStats = api get "stats/consumers?consumerType=$consumerType&msecsBeforeCurrentTimeToCompare=$($msecsBeforeCurrentTimeToCompare)&cookie=$cookie"
+        if($theseStats -and $theseStats.PSObject.Properties['statsList']){
+            $consumerStats['statsList'] = @($consumerStats['statsList'] + $theseStats.statsList)
+        }
+        if($theseStats -and $theseStats.PSObject.Properties['cookie']){
+            $cookie = $theseStats.cookie
+        }else{
+            $cookie = ''
+        }
+        if($cookie -eq ''){
+            break
+        }
+    }
+    return $consumerStats
+}
+
 function reportStorage(){
     $viewHistory = @{}
     $cluster = api get "cluster?fetchStats=true"
@@ -90,19 +127,7 @@ function reportStorage(){
         $clusterReduction = 1
     }
     if($includeArchives){
-        $vaults = api get vaults?includeFortKnoxVault=true
-        if($vaults){
-            $nowMsecs = [Int64]((dateToUsecs) / 1000)
-            $weekAgoMsecs = $nowMsecs - ($growthDays * 86400000)
-            $cloudStart = $cluster.createdTimeMsecs
-            $cloudStatURL = "reports/dataTransferToVaults?endTimeMsecs=$nowMsecs&startTimeMsecs=$cloudStart"
-            foreach($vault in $vaults){
-                $cloudStatURL += "&vaultIds=$($vault.id)"
-            }
-            output "  getting external target stats..."
-            $cloudStats = api get $cloudStatURL
-            $cloudStats | ConvertTo-Json -Depth 99 | Out-File "$($cluster.name)-cloudStats.json"
-        }
+        $cloudStats = getCloudStats
     }
     
     if($skipDeleted){
@@ -119,58 +144,13 @@ function reportStorage(){
     $nowUsecs = dateToUsecs
     
     # local backup stats
-    $cookie = ''
-    $localStats = @{'statsList'= @()}
-    while($True){
-        $theseStats = api get "stats/consumers?consumerType=kProtectionRuns&msecsBeforeCurrentTimeToCompare=$($msecsBeforeCurrentTimeToCompare)&cookie=$cookie"
-        if($theseStats -and $theseStats.PSObject.Properties['statsList']){
-            $localStats['statsList'] = @($localStats['statsList'] + $theseStats.statsList)
-        }
-        if($theseStats -and $theseStats.PSObject.Properties['cookie']){
-            $cookie = $theseStats.cookie
-        }else{
-            $cookie = ''
-        }
-        if($cookie -eq ''){
-            break
-        }
-    }
+    $localStats = getConsumerStats 'kProtectionRuns' $growthDays
 
     # replica backup stats
-    $cookie = ''
-    $replicaStats = @{'statsList'= @()}
-    while($True){
-        $theseStats = api get "stats/consumers?consumerType=kReplicationRuns&msecsBeforeCurrentTimeToCompare=$($msecsBeforeCurrentTimeToCompare)&cookie=$cookie"
-        if($theseStats -and $theseStats.PSObject.Properties['statsList']){
-            $replicaStats['statsList'] = @($replicaStats['statsList'] + $theseStats.statsList)
-        }
-        if($theseStats -and $theseStats.PSObject.Properties['cookie']){
-            $cookie = $theseStats.cookie
-        }else{
-            $cookie = ''
-        }
-        if($cookie -eq ''){
-            break
-        }
-    }
+    $replicaStats = getConsumerStats 'kReplicationRuns' $growthDays
 
     # viewRunStats
-    $cookie = ''
-    $viewRunStats = @{'statsList'= @()}
-    while($True){
-        $theseStats = api get "stats/consumers?consumerType=kViewProtectionRuns&msecsBeforeCurrentTimeToCompare=$($msecsBeforeCurrentTimeToCompare)&cookie=$cookie"
-        if($theseStats -and $theseStats.PSObject.Properties['statsList']){
-            $viewRunStats['statsList'] = @($viewRunStats['statsList'] + $theseStats.statsList)
-        }
-        if($theseStats -and $theseStats.PSObject.Properties['cookie']){
-            $cookie = $theseStats.cookie
-        }else{
-            $cookie = ''
-        }
-        if($cookie -eq ''){
-            break
-        }
-    }
+    $viewRunStats = getConsumerStats 'kViewProtectionRuns' $growthDays
 
     $viewJobAltStats = @{}
 
@@ -379,36 +359,6 @@ function reportStorage(){
                                     }
                                 }
                             }
-                            # if($job.environment -eq 'kPhysical' -and $job.physicalParams.protectionType -eq 'kVolume' -and $objects[$objId]['fetb'] -eq 0){
-                            #     if($dbg){
-                            #         Write-Host "    getting fetb"
-                            #     }
-                            #     $vms = $vmsearch.vms | Where-Object {$_.vmDocument.objectName -eq $object.object.name}
-                            #     if($vms){
-                            #         $vmbytes = $vms[0].vmDocument.objectId.entity.sizeInfo.value.sourceDataSizeBytes
-                            #         if($vmbytes -gt 0){
-                            #             $objects[$objId]['logical'] = $vmbytes
-                            #             $objects[$objId]['fetb'] = $vmbytes
-                            #         }
-                            #     }
-                            # }
-                            # if($job.environment -eq 'kVMware' -and $objects[$objId]['fetb'] -eq 0){
-                            #     if($dbg){
-                            #         Write-Host "    getting fetb"
-                            #     }
-                            #     $vms = $vmsearch.vms | Where-Object {$_.vmDocument.objectName -eq $object.object.name}
-                            #     if($vms){
-                            #         $vmbytes = $vms[0].vmDocument.objectId.entity.vmwareEntity.frontEndSizeInfo.sizeBytes
-                            #         if($vmbytes -gt 0){
-                            #             $objects[$objId]['logical'] = $vmbytes
-                            #             $objects[$objId]['fetb'] = $vmbytes
-                            #         }
-                            #         $tagAttrs = $vms[0].vmDocument.attributeMap | Where-Object xKey -match 'VMware_tag'
-                            #         if($tagAttrs){
-                            #             $objects[$objId]['vmTags'] = $tagAttrs.xValue -join ';'
-                            #         }
-                            #     }
-                            # }
                             if($snap -and $objId -in $objects.Keys -and $snap.snapshotInfo.stats.PSObject.Properties['logicalSizeBytes'] -and $snap.snapshotInfo.stats.logicalSizeBytes -gt $objects[$objId]['logical']){
                                 if($objects[$objId]['logical'] -eq 0 -or ($job.environment -notin @('kVMware', 'kAD') -and ($job.environment -ne 'kPhysical' -and $job.physicalParams.protectionType -ne 'kVolume'))){
                                     $objects[$objId]['logical'] = $snap.snapshotInfo.stats.logicalSizeBytes
@@ -570,9 +520,6 @@ function reportStorage(){
                 }else{
                     $objWeight = 0
                 }
-                # Write-Host $objWeight
-                # Write-Host $jobWritten
-                # Write-Host $jobReduction
                 if($jobWritten -gt 0){
                     $objWritten = $objWeight * $jobWritten
                 }elseif($jobReduction -gt 0){
@@ -632,16 +579,13 @@ function reportStorage(){
                     $alloc = toUnits $thisObject['alloc']
                 }
                 $sumObjectsUsed += $thisObject['logical']
-                # Write-Host $(toUnits $sumObjectsUsed)
                 $sumObjectsWritten += $objWritten
                 $sumObjectsWrittenWithResiliency += $objWrittenWithResiliency
                 if($alloc -eq 0){
                     $alloc = $objFESize
                 }
                 $oldestBackup = '-'
-                # if($thisObject['oldestBackup'] -gt 0){
-                #     $oldestBackup = usecsToDate $thisObject['oldestBackup']
-                # }
+
                 """$($cluster.name)"",""$origin"",""$statsAge"",""$($job.name)"",""$tenant"",""$($job.storageDomainId)"",""$sdName"",""$($job.environment)"",""$sourceName"",""$($thisObject['name'])"",""$alloc"",""$objFESize"",""$(toUnits $objDataIn)"",""$(toUnits $objWritten)"",""$(toUnits $objWrittenWithResiliency)"",""$jobReduction"",""$objGrowth"",""$($thisObject['numSnaps'])"",""$($thisObject['numLogs'])"",""$oldestBackup"",""$(usecsToDate $thisObject['newestBackup'])"",""$($thisObject['lastDataLock'])"",""$archiveCount"",""$oldestArchive"",""$(toUnits $totalArchived)"",""$vaultStats"",""$($job.description)"",""$($thisObject['vmTags'])""" | Out-File -FilePath $outfileName -Append
                 if($secondFormat){
                     """$($cluster.name)"",""$monthString"",""$fqObjectName"",""$($job.description)"",""$(toUnits $objWrittenWithResiliency)""" | Out-File -FilePath $outfile2 -Append
@@ -747,7 +691,6 @@ function reportStorage(){
     $viewJobStats = @{}
     
     # build total job FE sizes
-    
     foreach($view in $views.views){
         try{
             $jobName = $view.viewProtection.protectionGroups[-1].groupName
@@ -861,7 +804,6 @@ function reportStorage(){
             }
         }
         $sumObjectsUsed += $viewStats.totalLogicalUsageBytes
-        # Write-Host $(toUnits $sumObjectsUsed)
         $sumObjectsWritten += $jobWritten
         $sumObjectsWrittenWithResiliency += $consumption
         """$($cluster.name)"",""$origin"",""$statsAge"",""$($jobName)"",""$($view.tenantId -replace ".$")"",""$($view.storageDomainId)"",""$($view.storageDomainName)"",""kView"",""$sourceName"",""$viewName"",""$objFESize"",""$objFESize"",""$(toUnits $dataIn)"",""$(toUnits $jobWritten)"",""$(toUnits $consumption)"",""$jobReduction"",""$objGrowth"",""$numSnaps"",""$numLogs"",""$oldestBackup"",""$newestBackup"",""$lastDataLock"",""$archiveCount"",""$oldestArchive"",""$(toUnits $totalArchived)"",""$vaultStats"",""$($view.description)"",""""" | Out-File -FilePath $outfileName -Append
