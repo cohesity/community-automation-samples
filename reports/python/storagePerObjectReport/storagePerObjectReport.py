@@ -73,6 +73,35 @@ csv.write('"Cluster Name","Origin","Stats Age (Days)","Protection Group","Tenant
 clusterStats.write('"Cluster Name","Total Used %s","BookKeeper Used %s","Unaccounted Usage %s","Unaccounted Percent","Reduction Ratio","All Objects Front End Size %s","All Objects Stored (After Reduction) %s","All Objects Stored (After Reduction and Resiliency) %s","Storage Variance Factor","Script Version"\n' % (units, units, units, units, units, units))
 
 
+def getCloudStats(cluster):
+    vaults = api('get', 'vaults?includeFortKnoxVault=true')
+    cloudStats = None
+    if vaults is not None and len(vaults) > 0 and includearchives is True:
+        nowMsecs = int((dateToUsecs()) / 1000)
+        cloudStart = cluster['createdTimeMsecs']
+        cloudStatURL = 'reports/dataTransferToVaults?endTimeMsecs=%s&startTimeMsecs=%s' % (nowMsecs, cloudStart)
+        for vault in vaults:
+            cloudStatURL += '&vaultIds=%s' % vault['id']
+        cloudStats = api('get', cloudStatURL)
+    return cloudStats
+
+
+def getConsumerStats(consumerType, msecsBeforeCurrentTimeToCompare):
+    cookie = ''
+    consumerStats = {'statsList': []}
+    while True:
+        theseStats = api('get', 'stats/consumers?consumerType=%s&msecsBeforeCurrentTimeToCompare=%s&cookie=%s' % (consumerType, msecsBeforeCurrentTimeToCompare, cookie))
+        if 'statsList' in theseStats:
+            consumerStats['statsList'] = consumerStats['statsList'] + theseStats['statsList']
+        if 'cookie' in theseStats:
+            cookie = theseStats['cookie']
+        else:
+            cookie = ''
+        if cookie == '':
+            break
+    return consumerStats
+
+
 def reportStorage():
     sumObjectsUsed = 0
     sumObjectsWritten = 0
@@ -88,13 +117,8 @@ def reportStorage():
         clusterUsed = 0
     vaults = api('get', 'vaults?includeFortKnoxVault=true')
     cloudStats = None
-    if vaults is not None and len(vaults) > 0 and includearchives is True:
-        nowMsecs = int((dateToUsecs()) / 1000)
-        cloudStart = cluster['createdTimeMsecs']
-        cloudStatURL = 'reports/dataTransferToVaults?endTimeMsecs=%s&startTimeMsecs=%s' % (nowMsecs, cloudStart)
-        for vault in vaults:
-            cloudStatURL += '&vaultIds=%s' % vault['id']
-        cloudStats = api('get', cloudStatURL)
+    if includearchives is True:
+        cloudStats = getCloudStats(cluster)
     if skipdeleted:
         jobs = api('get', 'data-protect/protection-groups?isDeleted=false&includeTenants=true&useCachedData=true&onlyReturnBasicSummary=true', v=2)
     else:
@@ -102,48 +126,10 @@ def reportStorage():
 
     storageDomains = api('get', 'viewBoxes')
 
-    # local stats
     sourceNames = {}
-    cookie = ''
-    localStats = {'statsList': []}
-    while True:
-        theseStats = api('get', 'stats/consumers?consumerType=kProtectionRuns&msecsBeforeCurrentTimeToCompare=%s&cookie=%s' % (msecsBeforeCurrentTimeToCompare, cookie))
-        if 'statsList' in theseStats:
-            localStats['statsList'] = localStats['statsList'] + theseStats['statsList']
-        if 'cookie' in theseStats:
-            cookie = theseStats['cookie']
-        else:
-            cookie = ''
-        if cookie == '':
-            break
-
-    # replica stats
-    cookie = ''
-    replicaStats = {'statsList': []}
-    while True:
-        replicaStats = api('get', 'stats/consumers?consumerType=kReplicationRuns&msecsBeforeCurrentTimeToCompare=%s&cookie=%s' % (msecsBeforeCurrentTimeToCompare, cookie))
-        if 'statsList' in theseStats:
-            replicaStats['statsList'] = replicaStats['statsList'] + theseStats['statsList']
-        if 'cookie' in theseStats:
-            cookie = theseStats['cookie']
-        else:
-            cookie = ''
-        if cookie == '':
-            break
-
-    # view run stats
-    cookie = ''
-    viewRunStats = {'statsList': []}
-    while True:
-        theseStats = api('get', 'stats/consumers?consumerType=kViewProtectionRuns&msecsBeforeCurrentTimeToCompare=%s&cookie=%s' % (msecsBeforeCurrentTimeToCompare, cookie))
-        if 'statsList' in theseStats:
-            viewRunStats['statsList'] = viewRunStats['statsList'] + theseStats['statsList']
-        if 'cookie' in theseStats:
-            cookie = theseStats['cookie']
-        else:
-            cookie = ''
-        if cookie == '':
-            break
+    localStats = getConsumerStats('kProtectionRuns', growthdays)
+    replicaStats = getConsumerStats('kReplicationRuns', growthdays)
+    viewRunStats = getConsumerStats('kViewProtectionRuns', growthdays)
 
     viewJobAltStats = {}
 
@@ -220,11 +206,6 @@ def reportStorage():
                 else:
                     entityType = job['environment']
                 vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=%s&jobIds=%s' % (entityType, v1JobId))
-            # if job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume':
-            #     vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=kPhysical&jobIds=%s' % v1JobId)
-            # if job['environment'] == 'kVMware':
-            #     vmsearch = api('get', '/searchvms?allUnderHierarchy=true&entityTypes=kVMware&jobIds=%s' % v1JobId)
-            # get protection runs in retention
             archiveCount = 0
             oldestArchive = '-'
             lastDataLock = '-'
@@ -307,11 +288,9 @@ def reportStorage():
                                             objects[objId]['newestBackup'] = archivalInfo['startTimeUsecs']
                                             objects[objId]['oldestBackup'] = archivalInfo['startTimeUsecs']
                                     if objId in objects:
-                                        # print('***  %s' % objects[objId]['name'])
                                         if snap is None and 'logicalSizeBytes' in archivalInfo['stats'] and archivalInfo['stats']['logicalSizeBytes'] > objects[objId]['archiveLogical']:
                                             objects[objId]['archiveLogical'] = archivalInfo['stats']['logicalSizeBytes']
                                         if objects[objId]['fetb'] == 0 and (job['environment'] in ['kVMware', 'kAD'] or (job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume')):
-                                            # print('***  %s' % objects[objId]['name'])
                                             if vmsearch is not None and 'vms' in vmsearch and vmsearch['vms'] is not None and len(vmsearch['vms']) > 0:
                                                 vms = [vm for vm in vmsearch['vms'] if vm['vmDocument']['objectName'].lower() == object['object']['name'].lower()]
                                                 if len(vms) > 0:
@@ -322,29 +301,10 @@ def reportStorage():
                                                             objects[objId]['vmTags'] = ';'.join([a['xValue'] for a in tagAttrs])
                                                     else:
                                                         vmbytes = vms[0]['vmDocument']['objectId']['entity']['sizeInfo'][0]['value']['sourceDataSizeBytes']
-                                                    # print(vmbytes)
                                                     objects[objId]['logical'] = vmbytes
                                                     objects[objId]['fetb'] = vmbytes
 
-                                        # if job['environment'] == 'kPhysical' and job['physicalParams']['protectionType'] == 'kVolume' and objects[objId]['fetb'] == 0:
-                                        #     if vmsearch is not None and 'vms' in vmsearch and vmsearch['vms'] is not None and len(vmsearch['vms']) > 0:
-                                        #         vms = [vm for vm in vmsearch['vms'] if vm['vmDocument']['objectName'].lower() == object['object']['name'].lower()]
-                                        #         if len(vms) > 0:
-                                        #             vmbytes = vms[0]['vmDocument']['objectId']['entity']['sizeInfo'][0]['value']['sourceDataSizeBytes']
-                                        #             objects[objId]['logical'] = vmbytes
-                                        #             objects[objId]['fetb'] = vmbytes
-                                        # if job['environment'] == 'kVMware' and objects[objId]['fetb'] == 0:
-                                        #     if vmsearch is not None and 'vms' in vmsearch and vmsearch['vms'] is not None and len(vmsearch['vms']) > 0:
-                                        #         vms = [vm for vm in vmsearch['vms'] if vm['vmDocument']['objectName'].lower() == object['object']['name'].lower()]
-                                        #         if len(vms) > 0:
-                                        #             vmbytes = vms[0]['vmDocument']['objectId']['entity']['vmwareEntity']['frontEndSizeInfo']['sizeBytes']
-                                        #             objects[objId]['logical'] = vmbytes
-                                        #             objects[objId]['fetb'] = vmbytes
-                                        #             tagAttrs = [a for a in vms[0]['vmDocument']['attributeMap'] if 'VMware_tag' in a['xKey']]
-                                        #             if tagAttrs is not None and len(tagAttrs) > 0:
-                                        #                 objects[objId]['vmTags'] = ';'.join([a['xValue'] for a in tagAttrs])
                                         if snap is not None and 'logicalSizeBytes' in snap['snapshotInfo']['stats'] and snap['snapshotInfo']['stats']['logicalSizeBytes'] > objects[objId]['logical']:
-                                            # if job['environment'] != 'kVMware' or objects[objId]['logical'] == 0:
                                             if objects[objId]['logical'] == 0 or (job['environment'] not in ['kVMware', 'kAD'] and job['environment'] != 'kPhysical' and job['physicalParams']['protectionType'] != 'kVolume'):
                                                 objects[objId]['logical'] = snap['snapshotInfo']['stats']['logicalSizeBytes']
                                         if snap is not None and job['environment'] == 'kVMware' and snap['snapshotInfo']['stats']['logicalSizeBytes'] < objects[objId]['logical'] and snap['snapshotInfo']['stats']['logicalSizeBytes'] > 0:
@@ -628,7 +588,6 @@ def reportStorage():
             objGrowth = 0
             if jobName != '-' and jobName in viewJobStats and len( viewJobStats[jobName]) > 0:
                 objWeight = viewStats['storageConsumedBytes'] / viewJobAltStats[jobName]["totalConsumed"]
-                # display(viewJobStats[jobName][0]['stats'])
                 if 'dataInBytes' in viewJobStats[jobName][0]['stats']:
                     dataIn = viewJobStats[jobName][0]['stats']['dataInBytes'] * objWeight
                 if 'dataInBytesAfterDedup' in viewJobStats[jobName][0]['stats']:
@@ -644,7 +603,6 @@ def reportStorage():
                 dataInAfterDedup = viewStats['dataInBytesAfterDedup']
                 jobWritten = viewStats['dataWrittenBytes']
                 consumption = viewStats['localTotalPhysicalUsageBytes']
-                # display(viewStats)
                 try:
                     objGrowth = round((viewStats['storageConsumedBytes'] - viewStats['storageConsumedBytesPrev']) / multiplier, 1)
                 except Exception:
@@ -657,38 +615,12 @@ def reportStorage():
             sumObjectsWritten += round(jobWritten / multiplier, 1)
             sumObjectsWrittenWithResiliency += round(consumption / multiplier, 1)
 
-            # try:
-            #     objFESize = round(view['stats']['dataUsageStats']['totalLogicalUsageBytes'] / multiplier, 1)
-            #     sumObjectsUsed += objFESize
-            #     dataIn = view['stats']['dataUsageStats'].get('dataInBytes', 0)
-            #     dataInAfterDedup = view['stats']['dataUsageStats'].get('dataInBytesAfterDedup', 0)
-            #     jobWritten = view['stats']['dataUsageStats'].get('dataWrittenBytes', 0)
-            #     sumObjectsWritten += round(jobWritten / multiplier, 1)
-            #     statsTimeUsecs = view['stats']['dataUsageStats'].get('dataWrittenBytesTimestampUsec', 0)
-            #     if statsTimeUsecs > 0:
-            #         statsAge = round((nowUsecs - statsTimeUsecs) / 86400000000, 0)
-            #     else:
-            #         statsTime = '-'
-            #     consumption = view['stats']['dataUsageStats'].get('localTotalPhysicalUsageBytes', 0)
-            #     sumObjectsWrittenWithResiliency += round(consumption / multiplier, 1)
-            #     if jobName != '-':
-            #         objWeight = view['stats']['dataUsageStats']['totalLogicalUsageBytes'] / viewJobStats[jobName]
-            # except Exception:
-            #     pass
             if dataInAfterDedup > 0 and jobWritten > 0:
                 dedup = round(float(dataIn) / dataInAfterDedup, 1)
                 compression = round(float(dataInAfterDedup) / jobWritten, 1)
                 jobReduction = round((float(dataIn) / dataInAfterDedup) * (float(dataInAfterDedup) / jobWritten), 1)
             else:
                 jobReduction = 1
-            # try:
-            #     stat = [s for s in stats['statsList'] if s['name'] == viewName]
-            #     if stat is not None and len(stat) > 0:
-            #         if 'storageConsumedBytesPrev' not in stat[0]['stats']:
-            #             stat[0]['stats']['storageConsumedBytesPrev'] = 0
-            #         objGrowth = round((stat[0]['stats']['storageConsumedBytes'] - stat[0]['stats']['storageConsumedBytesPrev']) / multiplier, 1)
-            # except Exception:
-            #     objGrowth = 0
 
             # archive Stats
             totalArchived = 0
@@ -746,7 +678,6 @@ for vip in vips:
             reportStorage()
     else:
         reportStorage()
-
 
 csv.close()
 clusterStats.close()

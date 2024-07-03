@@ -90,8 +90,7 @@ function getCloudStats(){
     return $cloudStats
 }
 
-function getConsumerStats($consumerType, $growthDays){
-    $msecsBeforeCurrentTimeToCompare = $growthDays * 24 * 60 * 60 * 1000
+function getConsumerStats($consumerType, $msecsBeforeCurrentTimeToCompare){
     $cookie = ''
     $consumerStats = @{'statsList'= @()}
     while($True){
@@ -139,18 +138,19 @@ function reportStorage(){
     $storageDomains = api get viewBoxes
     
     $sourceNames = @{}
-    $msecsBeforeCurrentTimeToCompare = $growthDays * 24 * 60 * 60 * 1000
+    
     $growthDaysUsecs = $growthDays * 24 * 60 * 60 * 1000000
     $nowUsecs = dateToUsecs
-    
+    $msecsBeforeCurrentTimeToCompare = $growthDays * 24 * 60 * 60 * 1000
+
     # local backup stats
-    $localStats = getConsumerStats 'kProtectionRuns' $growthDays
+    $localStats = getConsumerStats 'kProtectionRuns' $msecsBeforeCurrentTimeToCompare
 
     # replica backup stats
-    $replicaStats = getConsumerStats 'kReplicationRuns' $growthDays
+    $replicaStats = getConsumerStats 'kReplicationRuns' $msecsBeforeCurrentTimeToCompare
 
     # viewRunStats
-    $viewRunStats = getConsumerStats 'kViewProtectionRuns' $growthDays
+    $viewRunStats = getConsumerStats 'kViewProtectionRuns' $msecsBeforeCurrentTimeToCompare
 
     $viewJobAltStats = @{}
 
