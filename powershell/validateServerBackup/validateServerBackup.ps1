@@ -10,11 +10,21 @@
 # process commandline arguments
 [CmdletBinding()]
 param (
-    [Parameter(Mandatory = $True)][string]$vip, # Cohesity cluster to connect to
-    [Parameter(Mandatory = $True)][string]$username, # Cohesity username
-    [Parameter()][string]$domain = 'local', # Cohesity user domain name
+    [Parameter()][string]$vip='helios.cohesity.com',
+    [Parameter()][string]$username = 'helios',
+    [Parameter()][string]$domain = 'local',
+    [Parameter()][string]$tenant,
+    [Parameter()][switch]$useApiKey,
+    [Parameter()][string]$password,
+    [Parameter()][switch]$noPrompt,
+    [Parameter()][switch]$mcm,
+    [Parameter()][string]$mfaCode,
+    [Parameter()][switch]$emailMfaCode,
+    [Parameter()][string]$clusterName,
     [Parameter()][array]$objectName, # object to validate (comma separated)
     [Parameter()][string]$objectList, # text file of objects to validate (one per line)
+    [Parameter()][switch]$includeVMs,
+    [Parameter()][int64]$pageSize = 1000,
     [Parameter()][string]$smtpServer, # outbound smtp server '192.168.1.95'
     [Parameter()][string]$smtpPort = 25, # outbound smtp port
     [Parameter()][array]$sendTo, # send to address
@@ -38,22 +48,39 @@ if ($objectList){
     }
 }
 
-if($objects.Count -eq 0){
-    Write-Host "No objects specified" -ForegroundColor Yellow
-    exit 1
-}
-
 # source the cohesity-api helper code
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
 
+# authentication =============================================
+# demand clusterName for Helios/MCM
+if(($vip -eq 'helios.cohesity.com' -or $mcm) -and ! $clusterName){
+    Write-Host "-clusterName required when connecting to Helios/MCM" -ForegroundColor Yellow
+    exit 1
+}
+
 # authenticate
-apiauth -vip $vip -username $username -domain $domain
+apiauth -vip $vip -username $username -domain $domain -passwd $password -apiKeyAuthentication $useApiKey -mfaCode $mfaCode -sendMfaCode $emailMfaCode -heliosAuthentication $mcm -regionid $region -tenant $tenant -noPromptForPassword $noPrompt
+
+# exit on failed authentication
+if(!$cohesity_api.authorized){
+    Write-Host "Not authenticated" -ForegroundColor Yellow
+    exit 1
+}
+
+# select helios/mcm managed cluster
+if($USING_HELIOS){
+    $thisCluster = heliosCluster $clusterName
+    if(! $thisCluster){
+        exit 1
+    }
+}
+# end authentication =========================================
 
 $date = (get-date).ToString()
 
 $title = "Backup Validation Report"
 
-$html = '<html>
+$script:html = '<html>
 <head>
     <style>
         p {
@@ -156,11 +183,11 @@ $html = '<html>
         <p style="margin-top: 15px; margin-bottom: 15px;">
             <span style="font-size:1.3em;">'
 
-$html += $title
-$html += '</span>
+$script:html += $title
+$script:html += '</span>
 <span style="font-size:1em; text-align: right; padding-right: 2px; float: right;">'
-$html += $date
-$html += '</span>
+$script:html += $date
+$script:html += '</span>
 </p>
 <table>
 <tr>
@@ -171,95 +198,124 @@ $html += '</span>
     <th>Validated</th>
 </tr>'
 
-$volumeTypes = @(1, 6)
+$volumeTypes = @(1, 6, 29)
 $finishedStates = @('kCanceled', 'kSuccess', 'kFailure', 'kWarning')
+if($includeVMs){
+    $entityTypes="entityTypes=kAcropolis&entityTypes=kAWS&entityTypes=kAWSNative&entityTypes=kAWSSnapshotManager&entityTypes=kAzure&entityTypes=kAzureNative&entityTypes=kFlashBlade&entityTypes=kGCP&entityTypes=kGenericNas&entityTypes=kHyperV&entityTypes=kHyperVVSS&entityTypes=kIsilon&entityTypes=kKVM&entityTypes=kNetapp&entityTypes=kPhysical&entityTypes=kVMware"
+}else{
+    $entityTypes="entityTypes=kFlashBlade&entityTypes=kGenericNas&entityTypes=kIsilon&entityTypes=kNetapp&entityTypes=kPhysical"
+}
 
-foreach($object in $objects){
-    $object = [string]$object
-    $search = api get "/searchvms?entityTypes=kAcropolis&entityTypes=kAWS&entityTypes=kAWSNative&entityTypes=kAWSSnapshotManager&entityTypes=kAzure&entityTypes=kAzureNative&entityTypes=kFlashBlade&entityTypes=kGCP&entityTypes=kGenericNas&entityTypes=kHyperV&entityTypes=kHyperVVSS&entityTypes=kIsilon&entityTypes=kKVM&entityTypes=kNetapp&entityTypes=kPhysical&entityTypes=kVMware&vmName=$object"
-    if(! $search.vms){
-        Write-Host "$object not found" -ForegroundColor Yellow
+function validateServer($object, $vm){
+    $doc = $vm.vmDocument
+    $version = $doc.versions[0]
+    $jobId = $doc.objectId.jobId
+    $jobName = $doc.jobName
+    $backupType = $doc.backupType
+    # get latest completed run status and date
+    $lastRecoveryPoint = $version.instanceId.jobStartTimeUsecs
+    $run = (api get "protectionRuns?jobId=$jobId&numRuns=2" | Where-Object {$_.backupRun.status -in $finishedStates})[0]
+    $lastRunUsecs = $run.backupRun.stats.startTimeUsecs
+    $lastStatus = $run.backupRun.status
+    # get latest recovery point dirlist
+    $readableBackup = $False
+    $instance = ("attemptNum={0}&clusterId={1}&clusterIncarnationId={2}&entityId={3}&jobId={4}&jobInstanceId={5}&jobStartTimeUsecs={6}&jobUidObjectId={7}" -f `
+            $version.instanceId.attemptNum,
+            $doc.objectId.jobUid.clusterId,
+            $doc.objectId.jobUid.clusterIncarnationId,
+            $doc.objectId.entity.id,
+            $doc.objectId.jobId,
+            $version.instanceId.jobInstanceId,
+            $version.instanceId.jobStartTimeUsecs,
+            $doc.objectId.jobUid.objectId)
+    if($backupType -in $volumeTypes){
+        $volumeList = api get "/vm/volumeInfo?$instance&statFileEntries=false"
+        if($volumeList.volumeInfos){
+            $volumeInfoCookie = $volumeList.volumeInfoCookie
+            $volumeName = [System.Web.HttpUtility]::UrlEncode($volumeList.volumeInfos[0].name)
+            $dirList = api get "/vm/directoryList?$instance&dirPath=%2F&statFileEntries=false&volumeInfoCookie=$volumeInfoCookie&volumeName=$volumeName"
+            if($dirList.entries){
+                $readableBackup = $True
+            }
+        }                
     }else{
-        # narrow search to exact name match
-        $search.vms = $search.vms | Where-Object {$_.vmDocument.objectName -eq $object}
+        $dirList = api get "/vm/directoryList?$instance&dirPath=%2F&statFileEntries=false"
+        if($dirList.entries){
+            $readableBackup = $True
+        }
+    }
+    $lastBackupReadable = (($lastRecoveryPoint -eq $lastRunUsecs) -and $readableBackup)
+    if($status -eq 'Failure' -or $False -eq $lastBackupReadable){
+        $script:html += "<tr style='color:BA3415;'>"
+    }else{
+        $script:html += "<tr>"
+    }
+    $script:html += ("<td>{0}</td>
+    <td>{1}</td>
+    <td>{2}</td>
+    <td>{3}</td>
+    <td>{4}</td>
+    </tr>" -f $object, $jobName, (usecsToDate $lastRunUsecs), $lastStatus.subString(1), $lastBackupReadable)
+
+    Write-Host ("{0}  {1}  {2}  {3}  {4}" -f `
+                $object,
+                $jobName,
+                (usecsToDate $lastRunUsecs),
+                $lastStatus.subString(1),
+                $lastBackupReadable)
+}
+
+if($objects.Count -eq 0){
+    $from = 0
+    $search = api get "/searchvms?$entityTypes&size=$pageSize&from=$from&vmName=*"
+    if($search.count -gt 0){
+        while($True){
+            $search.vms | Sort-Object -Property {$_.vmDocument.jobName}, {$_.vmDocument.objectName } | ForEach-Object {
+                $vm = $_
+                $object = $vm.vmDocument.objectName
+                validateServer $object $vm
+            }
+            if($search.count -gt ($pageSize + $from)){
+                $from += $pageSize
+                $search = api get "/searchvms?$entityTypes&size=$pageSize&from=$from&vmName=*"
+            }else{
+                break
+            }
+        }
+    }
+}else{
+    foreach($object in $objects){
+        $object = [string]$object
+        $search = api get "/searchvms?$entityTypes&vmName=$object"
         if(! $search.vms){
             Write-Host "$object not found" -ForegroundColor Yellow
         }else{
-            # narrow search to latest available recovery point
-            $vm = ($search.vms | Sort-Object -Property @{Expression={$_.vmDocument.versions[0].snapshotTimestampUsecs}; Ascending = $False})[0]
-            $doc = $vm.vmDocument
-            $version = $doc.versions[0]
-            $jobId = $doc.objectId.jobId
-            $jobName = $doc.jobName
-            $backupType = $doc.backupType
-            # get latest completed run status and date
-            $lastRecoveryPoint = $version.instanceId.jobStartTimeUsecs
-            $run = (api get "protectionRuns?jobId=$jobId&numRuns=2" | Where-Object {$_.backupRun.status -in $finishedStates})[0]
-            $lastRunUsecs = $run.backupRun.stats.startTimeUsecs
-            $lastStatus = $run.backupRun.status
-            # get latest recovery point dirlist
-            $readableBackup = $False
-            $instance = ("attemptNum={0}&clusterId={1}&clusterIncarnationId={2}&entityId={3}&jobId={4}&jobInstanceId={5}&jobStartTimeUsecs={6}&jobUidObjectId={7}" -f `
-                    $version.instanceId.attemptNum,
-                    $doc.objectId.jobUid.clusterId,
-                    $doc.objectId.jobUid.clusterIncarnationId,
-                    $doc.objectId.entity.id,
-                    $doc.objectId.jobId,
-                    $version.instanceId.jobInstanceId,
-                    $version.instanceId.jobStartTimeUsecs,
-                    $doc.objectId.jobUid.objectId)
-            if($backupType -in $volumeTypes){
-                $volumeList = api get "/vm/volumeInfo?$instance&statFileEntries=false"
-                if($volumeList.volumeInfos){
-                    $volumeInfoCookie = $volumeList.volumeInfoCookie
-                    $volumeName = [System.Web.HttpUtility]::UrlEncode($volumeList.volumeInfos[0].name)
-                    $dirList = api get "/vm/directoryList?$instance&dirPath=%2F&statFileEntries=false&volumeInfoCookie=$volumeInfoCookie&volumeName=$volumeName"
-                    if($dirList.entries){
-                        $readableBackup = $True
-                    }
-                }                
+            # narrow search to exact name match
+            $search.vms = $search.vms | Where-Object {$_.vmDocument.objectName -eq $object}
+            if(! $search.vms){
+                Write-Host "$object not found" -ForegroundColor Yellow
             }else{
-                $dirList = api get "/vm/directoryList?$instance&dirPath=%2F&statFileEntries=false"
-                if($dirList.entries){
-                    $readableBackup = $True
-                }
+                # narrow search to latest available recovery point
+                $vm = ($search.vms | Sort-Object -Property @{Expression={$_.vmDocument.versions[0].snapshotTimestampUsecs}; Ascending = $False})[0]
+                validateServer $object $vm
             }
-            $lastBackupReadable = (($lastRecoveryPoint -eq $lastRunUsecs) -and $readableBackup)
-            if($status -eq 'Failure' -or $False -eq $lastBackupReadable){
-                $html += "<tr style='color:BA3415;'>"
-            }else{
-                $html += "<tr>"
-            }
-            $html += ("<td>{0}</td>
-            <td>{1}</td>
-            <td>{2}</td>
-            <td>{3}</td>
-            <td>{4}</td>
-            </tr>" -f $object, $jobName, (usecsToDate $lastRunUsecs), $lastStatus.subString(1), $lastBackupReadable)
-
-            Write-Host ("{0}  {1}  {2}  {3}  {4}" -f `
-                        $object,
-                        $jobName,
-                        (usecsToDate $lastRunUsecs),
-                        $lastStatus.subString(1),
-                        $lastBackupReadable)
         }
     }
 }
 
-$html += "</table>                
+$script:html += "</table>                
 </div>
 </body>
 </html>"
 
 $fileDate = $date.Replace('/','-').Replace(':','-').Replace(' ','_')
-$html | Out-File -FilePath "validationReport_$fileDate.html"
+$script:html | Out-File -FilePath "validationReport_$fileDate.html"
 
 if($smtpServer -and $sendTo -and $sendFrom){
     write-host "`nsending report to $([string]::Join(", ", $sendTo))`n"
 
     # send email report
     foreach($toaddr in $sendTo){
-        Send-MailMessage -From $sendFrom -To $toaddr -SmtpServer $smtpServer -Port $smtpPort -Subject $title -BodyAsHtml $html -WarningAction SilentlyContinue
+        Send-MailMessage -From $sendFrom -To $toaddr -SmtpServer $smtpServer -Port $smtpPort -Subject $title -BodyAsHtml $script:html -WarningAction SilentlyContinue
     }
 }
