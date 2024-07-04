@@ -1,5 +1,9 @@
 # Change Log for cohesity/community-automation-samples
 
+## 2024-07-04
+
+* [validateServerBackups.ps1](https://github.com/cohesity/community-automation-samples/tree/main/powershell/validateServerBackups) [`Update`] validate all applicable backups if not objects are specified
+
 ## 2024-06-28
 
 * [storagePerObjectReport.py](https://github.com/cohesity/community-automation-samples/tree/main/reports/python/storagePerObjectReport) [`Update`] improved used size for physical volume based servers and Active Directory backups
