@@ -102,6 +102,7 @@ for object in objects:
     for jobInfo in availableJobInfos:
         snapshots = api('get', 'data-protect/objects/%s/snapshots?protectionGroupIds=%s' % (object['id'], jobInfo['protectionGroupId']), v=2)
         snapshots = [s for s in snapshots['snapshots'] if s['snapshotTimestampUsecs'] <= desiredPIT]
+        snapshots = sorted(snapshots, key=lambda o: o['snapshotTimestampUsecs'], reverse=True)
         if snapshots is not None and len(snapshots) > 0:
             if snapshots[0]['snapshotTimestampUsecs'] > latestSnapshotTimeStamp:
                 latestSnapshot = snapshots[0]
@@ -142,6 +143,7 @@ if logtime is not None or latest:
             logRanges = [logRanges]
         for logRange in logRanges:
             if 'timeRanges' in logRange:
+                logRange['timeRanges'] = sorted(logRange['timeRanges'], key=lambda o: o['endTimeUsecs'], reverse=True)
                 if logRange['timeRanges'][0]['endTimeUsecs'] > latestLogPIT:
                     latestLogPIT = logRange['timeRanges'][0]['endTimeUsecs']
                 if latest:
