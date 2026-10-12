@@ -15,6 +15,7 @@ param (
    [Parameter()][string]$jobName,          # filter on job names
    [Parameter()][string]$jobList = '',    # filter on job names from text file
    [Parameter()][switch]$cancelOutdated,  # cancel if archive is already due to expire
+   [Parameter()][int]$daysTilExpire = 0,  # cancel archives that will expire within X days (use with -cancelOutdated)
    [Parameter()][switch]$cancelQueued,    # cancel if archive hasn't transferred any data yet
    [Parameter()][switch]$cancelAll,       # cancel all archives
    [Parameter()][switch]$quickScan,       # break scan if a completion is found or if no copyRuns are detected
