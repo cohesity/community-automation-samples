@@ -23,7 +23,6 @@ $GiB = (1024*1024*1024)
 . $(Join-Path -Path $PSScriptRoot -ChildPath cohesity-api.ps1)
 
 function reportStorage(){
-
     ### get cluster info
     $cluster = api get cluster
     $clusterId = $cluster.id
@@ -41,8 +40,7 @@ function reportStorage(){
 
     ### collect $days of write throughput stats
     write-host "Gathering Storage Statistics..." -ForegroundColor Green
-
-    if($cluster.clusterSize -eq 'kNextGen'){
+        if($cluster.clusterSize -eq 'kNextGen'){
         ### next gen clusters save data to a cloud target and use the local disks as cache only
         ### report the data saved to the cloud target (CloudChunkFileBytes), there is no fixed capacity to report against
         write-host "Next gen cluster detected, reporting cloud target usage" -ForegroundColor Green
@@ -50,34 +48,35 @@ function reportStorage(){
         $consumptionStats = api get "statistics/timeSeriesStats?schemaName=MRCounters&metricName=bytes_value&entityId=CloudChunkFileBytes&startTimeMsecs=$startTimeMsecs&endTimeMsecs=$endTimeMsecs&rollupFunction=latest&rollupIntervalSecs=86400"
         $capacityStats = $null
     }else{
-        $consumptionStats = api get statistics/timeSeriesStats?schemaName=kBridgeClusterStats`&entityId=$clusterId`&metricName=kMorphedUsageBytes`&startTimeMsecs=$startTimeMsecs`&rollupFunction=average`&rollupIntervalSecs=86400
-        $capacityStats = api get statistics/timeSeriesStats?schemaName=kBridgeClusterStats`&entityId=$clusterId`&metricName=kCapacityBytes`&startTimeMsecs=$startTimeMsecs`&rollupFunction=average`&rollupIntervalSecs=86400
+    $consumptionStats = api get statistics/timeSeriesStats?schemaName=kBridgeClusterStats`&entityId=$clusterId`&metricName=kMorphedUsageBytes`&startTimeMsecs=$startTimeMsecs`&rollupFunction=average`&rollupIntervalSecs=86400
+    $capacityStats = api get statistics/timeSeriesStats?schemaName=kBridgeClusterStats`&entityId=$clusterId`&metricName=kCapacityBytes`&startTimeMsecs=$startTimeMsecs`&rollupFunction=average`&rollupIntervalSecs=86400
     }
 
     $statsConsumed = @{}
     foreach ($stat in $consumptionStats.dataPointVec){
         $dt = (Get-Date (usecsToDate (($stat.timestampMsecs)*1000)) -Hour 0 -Minute 0 -Second 0).ToString('yyyy-MM-dd')
         $consumed = $stat.data.int64Value/$GiB
-        $statsConsumed[$dt] = [math]::Round($consumed)
+        $statsConsumed[$dt] =  [math]::Round($consumed)
     }
 
     $statsCapacity = @{}
     foreach ($stat in $capacityStats.dataPointVec){
         $dt = (Get-Date (usecsToDate (($stat.timestampMsecs)*1000)) -Hour 0 -Minute 0 -Second 0).ToString('yyyy-MM-dd')
         $capacity = $stat.data.int64Value/$GiB
-        $statsCapacity[$dt] = [math]::Round($capacity)
+        $statsCapacity[$dt] =  [math]::Round($capacity)
     }
 
     foreach($dt in $statsConsumed.Keys | Sort-Object -Descending){
         if($statsCapacity[$dt]){
-            $pctFull = ([math]::Round(100 * $statsConsumed[$dt] / $statsCapacity[$dt]))
-        }else{
+        $pctFull = ([math]::Round(100 * $statsConsumed[$dt] / $statsCapacity[$dt]))
+                }else{
             $pctFull = $null
         }
         """{0}"",""{1}"",""{2}"",""{3}"",""{4}""" -f $cluster.name, $dt, $statsConsumed[$dt], $statsCapacity[$dt], $pctFull | Tee-Object -FilePath $outFile -Append
     }
 
     write-host "Output written to $outFile" -ForegroundColor Green
+
 }
 
 # authentication =============================================
@@ -86,15 +85,12 @@ if(! $vip){
 }
 
 foreach($v in $vip){
-
     # authenticate
     apiauth -vip $v -username $username -domain $domain -passwd $password -apiKeyAuthentication $useApiKey -mfaCode $mfaCode -heliosAuthentication $mcm -regionid $region -tenant $tenant -noPromptForPassword $noPrompt -quiet
-
     if(!$cohesity_api.authorized){
         Write-Host "`n$($v): authentication failed" -ForegroundColor Yellow
         continue
     }
-
     if($USING_HELIOS){
         if(! $clusterName){
             $clusterName = @((heliosClusters).name)
